@@ -1,0 +1,40 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# 开发和测试文件
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# GitHub Actions
+.github/
+
+# 文档（如果不需要部署）
+docs/
+*.md
+!README.md
+
+# 本地配置
+.env.local
+.env.*.local
