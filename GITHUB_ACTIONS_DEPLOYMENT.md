@@ -47,7 +47,7 @@
    ```
    Name: global-news-mcp
    Environment: Python 3
-   Build Command: uv pip install -r requirements.txt
+   Build Command: pip install -r requirements.txt
    Start Command: uvicorn api.index:app --host 0.0.0.0 --port $PORT
    ```
 
@@ -96,7 +96,7 @@ services:
   - type: web
     name: global-news-mcp
     env: python
-    buildCommand: uv pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api.index:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
@@ -136,7 +136,7 @@ PORT=8000
 
 在Settings中设置：
 ```
-Build Command: uv pip install -r requirements.txt
+Build Command: pip install -r requirements.txt
 Start Command: uvicorn api.index:app --host 0.0.0.0 --port $PORT
 ```
 
@@ -294,7 +294,7 @@ cd global-news-mcp
 # 创建虚拟环境
 python3.11 -m venv venv
 source venv/bin/activate
-uv pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 #### 2. 创建Systemd服务
@@ -397,7 +397,7 @@ WORKDIR /app
 
 # 安装依赖
 COPY requirements.txt .
-RUN uv pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制应用代码
 COPY . .

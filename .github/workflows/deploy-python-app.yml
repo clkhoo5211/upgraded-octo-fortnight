@@ -76,7 +76,7 @@ jobs:
             cd /opt/global-news-mcp || exit 1
             git pull origin main
             source venv/bin/activate
-            uv pip install -r requirements.txt
+            pip install -r requirements.txt
             sudo systemctl restart global-news-mcp
             echo "✅ Server deployment completed"
 
@@ -154,8 +154,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          python -m uv pip install --upgrade uv pip
-          uv pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
       
       - name: Run health check
         run: |
