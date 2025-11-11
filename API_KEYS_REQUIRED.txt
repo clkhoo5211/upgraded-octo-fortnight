@@ -1,0 +1,34 @@
+=================================================================
+MCP新闻聚合服务 - API密钥配置指南
+=================================================================
+
+为了完成测试和使用，需要以下API密钥：
+
+1. GitHub Personal Access Token (必需) ⭐
+   - 用途: 自动提交新闻归档到GitHub仓库
+   - 获取方式: https://github.com/settings/tokens
+   - 权限要求: repo (完整仓库访问权限)
+   - 目标仓库: clkhoo5211/upgraded-octo-fortnight
+
+2. NewsAPI.org API Key (推荐)
+   - 用途: 搜索全球新闻源（150,000+新闻源）
+   - 获取方式: https://newsapi.org/register
+   - 免费套餐: 100次/天
+   - 注册仅需邮箱，即时获取密钥
+
+3. NewsData.io API Key (可选)
+   - 用途: 额外的新闻源支持
+   - 获取方式: https://newsdata.io/register
+   - 免费套餐: 200次/天
+
+注意事项：
+- GitHub Token是必需的
+- 至少需要一个新闻API密钥（NewsAPI或NewsData）以获得最佳体验
+- 如果不提供新闻API密钥，系统将仅使用RSS源（功能有限）
+
+配置方式：
+通过环境变量配置：
+export GITHUB_TOKEN="your_github_token"
+export NEWSAPI_KEY="your_newsapi_key"
+export NEWSDATA_KEY="your_newsdata_key"
+=================================================================

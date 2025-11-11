@@ -1,0 +1,27 @@
+{
+  "name": "agent_generated_global_news_aggregator",
+  "exhibit_name": "Global News Aggregator",
+  "type": 3,
+  "command": "sh /workspace/global-news-mcp/run.sh",
+  "args": [],
+  "env": {},
+  "description": "全网新闻聚合MCP服务，支持从多个新闻源（包括社交媒体、新闻网站、科技平台、财经网站等）搜索和聚合新闻，下载完整内容，智能分类并自动归档到GitHub仓库。支持中英双语，提供定时任务配置。",
+  "description_for_agent": "A comprehensive news aggregation MCP service that searches and aggregates news from multiple global sources, downloads full content with images, intelligently classifies news by category, and automatically archives to GitHub repository with scheduled tasks support.",
+  "user_params": {
+    "args": {},
+    "env": {
+      "GITHUB_TOKEN": {
+        "required": true,
+        "description": "GitHub Personal Access Token with repo permissions for automated commits to the news archive repository"
+      },
+      "NEWSAPI_KEY": {
+        "required": false,
+        "description": "NewsAPI.org API key for accessing global news sources (get free key at https://newsapi.org/register)"
+      },
+      "NEWSDATA_KEY": {
+        "required": false,
+        "description": "NewsData.io API key for additional news sources (get free key at https://newsdata.io/register)"
+      }
+    }
+  }
+}
