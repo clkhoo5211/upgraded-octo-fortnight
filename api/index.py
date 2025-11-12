@@ -3,7 +3,12 @@ Vercel Serverless Functions入口 - API首页
 """
 import os
 import json
+import sys
 from http.server import BaseHTTPRequestHandler
+from pathlib import Path
+
+# 添加src到路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -11,11 +16,70 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.end_headers()
+    
+    def _check_auth(self):
+        """检查认证状态"""
+        enable_auth = os.getenv('ENABLE_API_AUTH', 'false').lower() == 'true'
+        if not enable_auth:
+            return True  # 未启用认证，允许访问
+        
+        # 检查是否有Authorization头
+        auth_header = self.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return False
+        
+        token = auth_header[7:].strip()
+        if not token:
+            return False
+        
+        # 验证Token
+        try:
+            from src.auth.token_manager import TokenManager
+            token_manager = TokenManager()
+            
+            if token.startswith('at_'):
+                user_info = token_manager.verify_access_token(token)
+            elif token.startswith('ak_'):
+                user_info = token_manager.verify_api_key(token)
+            else:
+                return False
+            
+            if user_info and not user_info.get('expired'):
+                return True
+        except Exception as e:
+            print(f"认证检查错误: {e}")
+            return False
+        
+        return False
     
     def do_GET(self):
         try:
+            # 检查认证
+            if not self._check_auth():
+                self.send_response(401)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('WWW-Authenticate', 'Bearer')
+                self.end_headers()
+                error_response = {
+                    'error': 'Unauthorized',
+                    'message': 'Authentication required. Please provide a valid API Key or Access Token.',
+                    'status_code': 401,
+                    'service': 'Global News Aggregator API',
+                    'authentication': {
+                        'required': True,
+                        'methods': [
+                            'Authorization: Bearer <api_key>',
+                            'Authorization: Bearer <access_token>'
+                        ],
+                        'register_url': '/api/register',
+                        'login_url': '/api/auth/login'
+                    }
+                }
+                self.wfile.write(json.dumps(error_response, ensure_ascii=False).encode('utf-8'))
+                return
             # 检查配置状态
             config_status = {
                 'NEWSAPI_KEY': bool(os.getenv('NEWSAPI_KEY')),

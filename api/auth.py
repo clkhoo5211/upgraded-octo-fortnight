@@ -45,30 +45,35 @@ class handler(BaseHTTPRequestHandler):
         path = parsed.path
         
         try:
-            # /api/auth/me - 获取当前用户信息
-            if path == '/api/auth/me' or path.endswith('/me'):
+            # 支持多种路径格式
+            # /api/auth/me 或 /api/auth/me/ 或 /me
+            if path == '/api/auth/me' or path.endswith('/me') or path == '/me':
                 self._handle_get_me()
             
-            # /api/auth/rate-limit - 获取速率限制信息
-            elif path == '/api/auth/rate-limit' or path.endswith('/rate-limit'):
+            # /api/auth/rate-limit 或 /api/auth/rate-limit/ 或 /rate-limit
+            elif path == '/api/auth/rate-limit' or path.endswith('/rate-limit') or path == '/rate-limit':
                 self._handle_get_rate_limit()
             
-            # /api/auth/users - 列出所有用户（需要管理员）
-            elif path == '/api/auth/users' or path.endswith('/users'):
+            # /api/auth/token-status 或 /api/auth/token-status/ 或 /token-status
+            elif path == '/api/auth/token-status' or path.endswith('/token-status') or path == '/token-status':
+                self._handle_token_status({})  # GET请求，从Header获取token
+            
+            # /api/auth/users 或 /api/auth/users/ 或 /users
+            elif path == '/api/auth/users' or path.endswith('/users') or path == '/users':
                 if not self._check_admin():
                     self._send_error(403, 'Admin access required')
                     return
                 self._handle_list_users()
             
-            # /api/auth/api-keys - 列出API Keys（需要管理员）
-            elif path == '/api/auth/api-keys' or path.endswith('/api-keys'):
+            # /api/auth/api-keys 或 /api/auth/api-keys/ 或 /api-keys
+            elif path == '/api/auth/api-keys' or path.endswith('/api-keys') or path == '/api-keys':
                 if not self._check_admin():
                     self._send_error(403, 'Admin access required')
                     return
                 self._handle_list_api_keys()
             
             else:
-                self._send_error(404, 'Endpoint not found')
+                self._send_error(404, f'Endpoint not found: {path}')
         
         except Exception as e:
             import traceback
@@ -91,35 +96,36 @@ class handler(BaseHTTPRequestHandler):
             else:
                 data = {}
             
-            # /api/auth/login - 登录获取Token
-            if path == '/api/auth/login' or path.endswith('/login'):
+            # 支持多种路径格式
+            # /api/auth/login 或 /api/auth/login/ 或 /login
+            if path == '/api/auth/login' or path.endswith('/login') or path == '/login':
                 self._handle_login(data)
             
-            # /api/auth/refresh - 刷新Access Token
-            elif path == '/api/auth/refresh' or path.endswith('/refresh'):
+            # /api/auth/refresh 或 /api/auth/refresh/ 或 /refresh
+            elif path == '/api/auth/refresh' or path.endswith('/refresh') or path == '/refresh':
                 self._handle_refresh(data)
             
-            # /api/auth/renew - 续期Access Token（付费用户）
-            elif path == '/api/auth/renew' or path.endswith('/renew'):
+            # /api/auth/renew 或 /api/auth/renew/ 或 /renew
+            elif path == '/api/auth/renew' or path.endswith('/renew') or path == '/renew':
                 self._handle_renew(data)
             
-            # /api/auth/token-status - 获取Token状态
-            elif path == '/api/auth/token-status' or path.endswith('/token-status'):
+            # /api/auth/token-status 或 /api/auth/token-status/ 或 /token-status
+            elif path == '/api/auth/token-status' or path.endswith('/token-status') or path == '/token-status':
                 self._handle_token_status(data)
             
-            # /api/auth/api-key - 生成API Key
-            elif path == '/api/auth/api-key' or path.endswith('/api-key'):
+            # /api/auth/api-key 或 /api/auth/api-key/ 或 /api-key
+            elif path == '/api/auth/api-key' or path.endswith('/api-key') or path == '/api-key':
                 self._handle_create_api_key(data)
             
-            # /api/auth/user - 创建用户（需要管理员）
-            elif path == '/api/auth/user' or path.endswith('/user'):
+            # /api/auth/user 或 /api/auth/user/ 或 /user
+            elif path == '/api/auth/user' or path.endswith('/user') or path == '/user':
                 if not self._check_admin():
                     self._send_error(403, 'Admin access required')
                     return
                 self._handle_create_user(data)
             
             else:
-                self._send_error(404, 'Endpoint not found')
+                self._send_error(404, f'Endpoint not found: {path}')
         
         except Exception as e:
             import traceback
@@ -234,10 +240,12 @@ class handler(BaseHTTPRequestHandler):
             'tokens': new_tokens
         })
     
-    def _handle_token_status(self, data: dict):
+    def _handle_token_status(self, data: dict = None):
         """处理获取Token状态请求"""
+        if data is None:
+            data = {}
         # 可以从请求体或Header获取Token
-        access_token = data.get('access_token')
+        access_token = data.get('access_token') if isinstance(data, dict) else None
         if not access_token:
             # 尝试从Header获取
             auth_header = self.headers.get('Authorization', '')
