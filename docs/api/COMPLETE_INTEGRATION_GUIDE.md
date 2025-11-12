@@ -235,13 +235,27 @@ Content-Type: application/json
 }
 ```
 
+**重要说明**:
+- ✅ **刷新时会返回新的Access Token和新的Refresh Token**
+- ✅ **旧的Refresh Token使用后即失效，必须保存新的Refresh Token**
+- ✅ **如果Refresh Token过期，需要重新注册或登录**
+- ⚠️ **Refresh Token过期后无法刷新，必须重新获取**
+
+**错误响应（Refresh Token过期）**:
+```json
+{
+  "success": false,
+  "error": "Invalid or expired refresh token"
+}
+```
+
 ### Token续期（仅付费计划）
 
 付费Token可以续期，延长有效期：
 
 ```bash
 POST /api/auth/renew
-Authorization: Bearer <expired_access_token>
+Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {
@@ -267,9 +281,28 @@ Content-Type: application/json
 }
 ```
 
-**注意**: 
-- 只有付费Token（`is_paid: true`）可以续期
-- 免费Token过期后只能使用Refresh Token刷新或重新登录
+**重要说明**:
+- ✅ **续期时会返回新的Access Token和新的Refresh Token**
+- ✅ **旧的Token使用后仍可使用直到过期，但建议立即使用新Token**
+- ✅ **只有付费Token（`is_paid: true`）可以续期**
+- ✅ **Token可以未过期时续期，也可以过期后续期（如果仍在Refresh Token有效期内）**
+- ❌ **免费Token过期后只能使用Refresh Token刷新或重新登录**
+
+**错误响应（免费Token尝试续期）**:
+```json
+{
+  "success": false,
+  "error": "Only paid tokens can be renewed. Please upgrade your plan."
+}
+```
+
+**错误响应（Token无效）**:
+```json
+{
+  "success": false,
+  "error": "Invalid token"
+}
+```
 
 ### 升级计划并获取新Token
 
@@ -410,10 +443,11 @@ class NewsAPIClient:
         data = response.json()
         if data.get('success'):
             tokens = data['tokens']
+            # 重要：保存新的Access Token和Refresh Token
             self.access_token = tokens['access_token']
-            self.refresh_token = tokens['refresh_token']
+            self.refresh_token = tokens['refresh_token']  # 新的Refresh Token
             self.token_expires_at = datetime.fromisoformat(tokens['expires_at'])
-            print("✅ Token已刷新")
+            print("✅ Token已刷新，已保存新的Refresh Token")
     
     def _renew_token(self):
         """续期Token（仅付费计划）"""
@@ -425,10 +459,11 @@ class NewsAPIClient:
         data = response.json()
         if data.get('success'):
             tokens = data['tokens']
+            # 重要：保存新的Access Token和Refresh Token
             self.access_token = tokens['access_token']
-            self.refresh_token = tokens['refresh_token']
+            self.refresh_token = tokens['refresh_token']  # 新的Refresh Token
             self.token_expires_at = datetime.fromisoformat(tokens['expires_at'])
-            print("✅ Token已续期")
+            print("✅ Token已续期，已保存新的Refresh Token")
     
     def _login(self):
         """登录获取Token"""
@@ -623,10 +658,11 @@ class NewsAPIClient {
         
         const data = await response.json();
         if (data.success) {
+            // 重要：保存新的Access Token和Refresh Token
             this.accessToken = data.tokens.access_token;
-            this.refreshToken = data.tokens.refresh_token;
+            this.refreshToken = data.tokens.refresh_token;  // 新的Refresh Token
             this.tokenExpiresAt = new Date(data.tokens.expires_at);
-            console.log('✅ Token已刷新');
+            console.log('✅ Token已刷新，已保存新的Refresh Token');
         }
     }
     
@@ -642,10 +678,11 @@ class NewsAPIClient {
         
         const data = await response.json();
         if (data.success) {
+            // 重要：保存新的Access Token和Refresh Token
             this.accessToken = data.tokens.access_token;
-            this.refreshToken = data.tokens.refresh_token;
+            this.refreshToken = data.tokens.refresh_token;  // 新的Refresh Token
             this.tokenExpiresAt = new Date(data.tokens.expires_at);
-            console.log('✅ Token已续期');
+            console.log('✅ Token已续期，已保存新的Refresh Token');
         }
     }
     
@@ -754,6 +791,22 @@ class NewsAPIClient {
 
 ### Token过期处理流程
 
+#### 使用过期Token访问API的返回信息
+
+当使用过期或无效的Token访问API时，会返回以下错误：
+
+**HTTP状态码**: `401 Unauthorized`
+
+**响应体**:
+```json
+{
+  "error": "Invalid token",
+  "message": "The provided token is invalid or expired"
+}
+```
+
+#### Token过期处理流程
+
 ```python
 def handle_token_expiry(client, func, *args, **kwargs):
     """处理Token过期的通用函数"""
@@ -761,19 +814,65 @@ def handle_token_expiry(client, func, *args, **kwargs):
         return func(*args, **kwargs)
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 401:
-            # Token过期，尝试刷新
-            if client.refresh_token:
-                client._refresh_token()
-                return func(*args, **kwargs)
-            elif client.is_paid:
-                # 付费Token可以续期
-                client._renew_token()
-                return func(*args, **kwargs)
-            else:
-                # 免费Token需要重新登录
-                client._login()
-                return func(*args, **kwargs)
+            error_data = e.response.json()
+            if 'expired' in error_data.get('message', '').lower() or 'invalid' in error_data.get('message', '').lower():
+                # Token过期或无效，尝试刷新
+                if client.refresh_token:
+                    # 使用Refresh Token刷新（会返回新的Access Token和Refresh Token）
+                    client._refresh_token()
+                    # 重要：保存新的Refresh Token
+                    return func(*args, **kwargs)
+                elif client.is_paid:
+                    # 付费Token可以续期（会返回新的Access Token和Refresh Token）
+                    client._renew_token()
+                    # 重要：保存新的Refresh Token
+                    return func(*args, **kwargs)
+                else:
+                    # 免费Token需要重新登录
+                    client._login()
+                    return func(*args, **kwargs)
         raise
+```
+
+#### 刷新Token后的处理
+
+**重要**: 刷新或续期Token后，**必须保存新的Refresh Token**，因为旧的Refresh Token会失效。
+
+```python
+def _refresh_token(self):
+    """刷新Token"""
+    response = requests.post(
+        f"{self.api_base}/api/auth/refresh",
+        json={'refresh_token': self.refresh_token}
+    )
+    data = response.json()
+    if data.get('success'):
+        tokens = data['tokens']
+        # 保存新的Access Token和Refresh Token
+        self.access_token = tokens['access_token']
+        self.refresh_token = tokens['refresh_token']  # 重要：保存新的Refresh Token
+        self.token_expires_at = datetime.fromisoformat(tokens['expires_at'])
+        print("✅ Token已刷新，已保存新的Refresh Token")
+```
+
+#### 续期Token后的处理
+
+```python
+def _renew_token(self):
+    """续期Token（仅付费计划）"""
+    response = requests.post(
+        f"{self.api_base}/api/auth/renew",
+        headers={'Authorization': f"Bearer {self.access_token}"},
+        json={'access_token': self.access_token}
+    )
+    data = response.json()
+    if data.get('success'):
+        tokens = data['tokens']
+        # 保存新的Access Token和Refresh Token
+        self.access_token = tokens['access_token']
+        self.refresh_token = tokens['refresh_token']  # 重要：保存新的Refresh Token
+        self.token_expires_at = datetime.fromisoformat(tokens['expires_at'])
+        print("✅ Token已续期，已保存新的Refresh Token")
 ```
 
 ---
@@ -906,7 +1005,48 @@ def is_token_expired(access_token):
     )
     status = response.json().get('status', {})
     return status.get('expired', False)
+
+def check_and_refresh_token(client):
+    """检查Token状态并在需要时刷新"""
+    status = client._check_token_status()
+    
+    if not status.get('valid'):
+        if status.get('expired'):
+            if client.is_paid and status.get('can_renew'):
+                # 付费Token可以续期
+                client._renew_token()
+                print("✅ Token已续期")
+            elif client.refresh_token:
+                # 使用Refresh Token刷新
+                client._refresh_token()
+                print("✅ Token已刷新")
+            else:
+                # 需要重新登录
+                client._login()
+                print("✅ 已重新登录")
+        else:
+            # Token无效
+            print("❌ Token无效，需要重新登录")
+            client._login()
 ```
+
+### Token刷新和续期的关键点
+
+1. **刷新Token时**:
+   - ✅ 返回**新的Access Token**和**新的Refresh Token**
+   - ✅ 旧的Refresh Token使用后即失效
+   - ⚠️ **必须保存新的Refresh Token**，否则下次无法刷新
+
+2. **续期Token时**:
+   - ✅ 返回**新的Access Token**和**新的Refresh Token**
+   - ✅ 旧的Token仍可使用直到过期
+   - ⚠️ **建议立即使用新Token**，并保存新的Refresh Token
+
+3. **Token过期时**:
+   - ❌ 使用过期Token访问API返回 `401 Unauthorized`
+   - ✅ 可以使用Refresh Token刷新（如果未过期）
+   - ✅ 付费Token可以续期（如果Refresh Token未过期）
+   - ❌ 如果Refresh Token也过期，必须重新注册或登录
 
 ---
 
@@ -952,14 +1092,27 @@ def is_token_expired(access_token):
 1. **使用API Key**（推荐）
    - 长期有效，不需要刷新
    - 适合生产环境
+   - 无需处理Token过期问题
 
 2. **使用Access Token**
    - 免费计划：1小时，需要定期刷新
    - 付费计划：30天，可以续期
+   - ⚠️ **必须保存Refresh Token**，用于刷新Access Token
 
 3. **Token过期处理**
-   - 免费Token：使用Refresh Token刷新或重新登录
-   - 付费Token：可以续期或刷新
+   - **免费Token过期**：
+     - ✅ 使用Refresh Token刷新（返回新的Access Token和Refresh Token）
+     - ✅ 如果Refresh Token也过期，需要重新注册或登录
+   - **付费Token过期**：
+     - ✅ 使用Refresh Token刷新（返回新的Access Token和Refresh Token）
+     - ✅ 可以续期（返回新的Access Token和Refresh Token）
+     - ✅ 如果Refresh Token也过期，需要重新注册或登录
+
+4. **重要提醒**
+   - ⚠️ **刷新或续期Token后，必须保存新的Refresh Token**
+   - ⚠️ **旧的Refresh Token使用后即失效**
+   - ⚠️ **如果丢失新的Refresh Token，下次Token过期时无法刷新**
+   - ✅ **建议将Refresh Token存储在安全的地方（环境变量、密钥管理服务等）**
 
 ### 对接步骤
 
