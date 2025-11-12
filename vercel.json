@@ -58,6 +58,10 @@
       "dest": "/api/register.py"
     },
     {
+      "src": "/api/upgrade",
+      "dest": "/api/upgrade.py"
+    },
+    {
       "src": "/",
       "dest": "/api/index.py"
     }

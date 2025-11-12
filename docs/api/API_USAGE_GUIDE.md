@@ -18,29 +18,51 @@
 
 ### 基础端点
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/` | GET | API首页，查看服务信息和端点列表 |
-| `/api/health` | GET | 健康检查，查看配置状态和可用源 |
-| `/api/test` | GET | 简单测试端点 |
+| 端点 | 方法 | 说明 | 需要认证 |
+|------|------|------|----------|
+| `/` | GET | API首页，查看服务信息和端点列表 | ❌ |
+| `/api/health` | GET | 健康检查，查看配置状态和可用源 | ❌ |
+| `/api/test` | GET | 简单测试端点 | ❌ |
+
+### 用户注册和认证端点
+
+| 端点 | 方法 | 说明 | 需要认证 |
+|------|------|------|----------|
+| `/api/register` | POST | 用户注册（自助获取Token） | ❌ |
+| `/api/auth/login` | POST | 登录获取Token | ❌ |
+| `/api/auth/refresh` | POST | 刷新Access Token | ❌ |
+| `/api/auth/renew` | POST | 续期Token（仅付费计划） | ✅ |
+| `/api/auth/api-key` | POST | 创建API Key | ✅ |
+| `/api/auth/me` | GET | 获取当前用户信息 | ✅ |
+| `/api/auth/rate-limit` | GET | 获取速率限制信息 | ✅ |
+| `/api/auth/token-status` | POST/GET | 获取Token状态（是否过期） | ✅ |
+| `/api/upgrade` | POST | 升级计划并获取新Token | ✅ |
 
 ### 核心功能端点
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/api/search` | GET/POST | 搜索全网新闻 |
-| `/api/download` | GET/POST | 下载新闻完整内容（HTML、图片、视频） |
-| `/api/archive` | POST | 完整归档API（搜索+下载+保存到GitHub） |
-| `/api/auto_archive` | GET | 自动归档前一日新闻 |
+| 端点 | 方法 | 说明 | 需要认证 |
+|------|------|------|----------|
+| `/api/search` | GET/POST | 搜索全网新闻 | ✅（如果启用） |
+| `/api/download` | GET/POST | 下载新闻完整内容（HTML、图片、视频） | ✅（如果启用） |
+| `/api/archive` | POST | 完整归档API（搜索+下载+保存到GitHub） | ✅（如果启用） |
+| `/api/auto_archive` | GET | 自动归档前一日新闻 | ❌ |
 
 ### 管理端点
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/api/manage_categories` | GET | 查看所有分类 |
-| `/api/manage_categories` | POST | 添加/更新分类 |
-| `/api/manage_categories` | DELETE | 删除分类 |
-| `/api/optimize_keywords` | GET | 查看关键词统计 |
+| 端点 | 方法 | 说明 | 需要认证 |
+|------|------|------|----------|
+| `/api/manage_categories` | GET | 查看所有分类 | ❌ |
+| `/api/manage_categories` | POST | 添加/更新分类 | ❌ |
+| `/api/manage_categories` | DELETE | 删除分类 | ❌ |
+| `/api/optimize_keywords` | GET | 查看关键词统计 | ❌ |
+
+### 管理员端点
+
+| 端点 | 方法 | 说明 | 需要认证 |
+|------|------|------|----------|
+| `/api/auth/user` | POST | 创建用户 | ✅ Admin |
+| `/api/auth/users` | GET | 列出所有用户 | ✅ Admin |
+| `/api/auth/api-keys` | GET | 列出所有API Keys | ✅ Admin |
 
 ---
 
@@ -791,6 +813,10 @@ API认证功能是**可选的**，通过环境变量`ENABLE_API_AUTH`控制：
 - **未启用认证** (`ENABLE_API_AUTH=false` 或未设置): 所有端点公开访问
 - **已启用认证** (`ENABLE_API_AUTH=true`): 需要API Key或Token才能访问
 
+### 📖 完整对接文档
+
+**推荐查看**: [完整对接指南](./COMPLETE_INTEGRATION_GUIDE.md) - 包含Token管理、续期、过期处理等完整流程
+
 ### 如何获取API Key和Token
 
 #### 步骤1: 确保认证已启用
@@ -868,9 +894,19 @@ curl -X POST https://upgraded-octo-fortnight.vercel.app/api/search \
   -d '{"categories": ["tech"], "max_results": 10}'
 ```
 
-### Token刷新机制
+### Token刷新和续期机制
 
-Access Token有效期为1小时，过期后需要使用Refresh Token刷新：
+#### Token类型和有效期
+
+| 计划 | Access Token | Refresh Token | 是否可续期 |
+|------|--------------|---------------|------------|
+| **Free** | 1小时 | 7天 | ❌ |
+| **Basic** | 30天 | 90天 | ✅ |
+| **Premium** | 30天 | 90天 | ✅ |
+
+#### 刷新Token（所有计划）
+
+Access Token过期后可以使用Refresh Token刷新：
 
 ```bash
 curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/refresh \
@@ -887,10 +923,192 @@ curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/refresh \
     "refresh_token": "rt_new_xxx...",
     "token_type": "Bearer",
     "expires_in": 3600,
-    "expires_at": "2025-11-12T15:00:00"
+    "expires_at": "2025-11-12T15:00:00",
+    "plan": "free",
+    "is_paid": false
   }
 }
 ```
+
+#### 续期Token（仅付费计划）
+
+付费Token可以续期，延长有效期：
+
+```bash
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/renew \
+  -H "Authorization: Bearer <expired_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "access_token": "at_xxx...",
+    "expires_in": 2592000
+  }'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Token renewed successfully",
+  "tokens": {
+    "access_token": "at_new_xxx...",
+    "refresh_token": "rt_new_xxx...",
+    "expires_in": 2592000,
+    "expires_at": "2025-12-12T15:00:00",
+    "plan": "premium",
+    "is_paid": true
+  }
+}
+```
+
+#### 检查Token状态
+
+```bash
+# 方式1: POST请求
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/token-status \
+  -H "Content-Type: application/json" \
+  -d '{"access_token": "at_xxx..."}'
+
+# 方式2: GET请求（使用Header）
+curl -H "Authorization: Bearer <access_token>" \
+  https://upgraded-octo-fortnight.vercel.app/api/auth/token-status
+```
+
+**响应示例（有效Token）**:
+```json
+{
+  "success": true,
+  "status": {
+    "valid": true,
+    "expired": false,
+    "expires_at": "2025-11-13T15:00:00",
+    "remaining_seconds": 86400,
+    "remaining_hours": 24,
+    "plan": "basic",
+    "is_paid": true
+  }
+}
+```
+
+**响应示例（过期Token）**:
+```json
+{
+  "success": false,
+  "status": {
+    "valid": false,
+    "expired": true,
+    "expires_at": "2025-11-12T14:00:00",
+    "expired_since": 3600,
+    "plan": "basic",
+    "is_paid": true,
+    "can_renew": true
+  }
+}
+```
+
+#### 升级计划并获取新Token
+
+```bash
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/upgrade \
+  -H "Authorization: Bearer <current_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"plan": "premium"}'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Plan upgraded from basic to premium",
+  "old_plan": "basic",
+  "new_plan": "premium",
+  "rate_limit": 10000,
+  "tokens": {
+    "access_token": "at_new_xxx...",
+    "refresh_token": "rt_new_xxx...",
+    "expires_in": 2592000,
+    "expires_at": "2025-12-12T15:00:00",
+    "plan": "premium",
+    "is_paid": true
+  }
+}
+```
+
+### 用户注册（自助获取Token）
+
+用户可以直接注册并获取Token：
+
+```bash
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "name": "John Doe",
+    "plan": "free"
+  }'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "User registered successfully",
+  "user_id": "user@example.com",
+  "plan": "free",
+  "rate_limit": 100,
+  "tokens": {
+    "access_token": "at_xxx...",
+    "refresh_token": "rt_xxx...",
+    "expires_in": 3600,
+    "expires_at": "2025-11-12T15:00:00",
+    "plan": "free",
+    "is_paid": false
+  },
+  "next_step": "create_api_key"
+}
+```
+
+### Token过期处理流程
+
+#### 免费Token过期
+
+1. **检查Token状态**:
+   ```bash
+   curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/token-status \
+     -d '{"access_token": "at_xxx..."}'
+   ```
+
+2. **如果过期，使用Refresh Token刷新**:
+   ```bash
+   curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/refresh \
+     -d '{"refresh_token": "rt_xxx..."}'
+   ```
+
+3. **或重新登录**:
+   ```bash
+   curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/login \
+     -d '{"user_id": "user@example.com"}'
+   ```
+
+#### 付费Token过期
+
+1. **检查Token状态**:
+   ```bash
+   curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/token-status \
+     -d '{"access_token": "at_xxx..."}'
+   ```
+
+2. **如果过期且`can_renew: true`，可以续期**:
+   ```bash
+   curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/renew \
+     -H "Authorization: Bearer <expired_token>" \
+     -d '{"access_token": "at_xxx..."}'
+   ```
+
+3. **或使用Refresh Token刷新**:
+   ```bash
+   curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/refresh \
+     -d '{"refresh_token": "rt_xxx..."}'
+   ```
 
 ### 在其他仓库中使用
 

@@ -99,6 +99,14 @@ class handler(BaseHTTPRequestHandler):
             elif path == '/api/auth/refresh' or path.endswith('/refresh'):
                 self._handle_refresh(data)
             
+            # /api/auth/renew - 续期Access Token（付费用户）
+            elif path == '/api/auth/renew' or path.endswith('/renew'):
+                self._handle_renew(data)
+            
+            # /api/auth/token-status - 获取Token状态
+            elif path == '/api/auth/token-status' or path.endswith('/token-status'):
+                self._handle_token_status(data)
+            
             # /api/auth/api-key - 生成API Key
             elif path == '/api/auth/api-key' or path.endswith('/api-key'):
                 self._handle_create_api_key(data)
@@ -193,6 +201,65 @@ class handler(BaseHTTPRequestHandler):
             'success': True,
             'tokens': new_tokens
         })
+    
+    def _handle_renew(self, data: dict):
+        """处理续期Token请求（付费用户）"""
+        access_token = data.get('access_token')
+        new_expires_in = data.get('expires_in')  # 可选，新的过期时间（秒）
+        
+        if not access_token:
+            self._send_error(400, 'access_token is required')
+            return
+        
+        # 检查Token状态
+        token_status = token_manager.get_token_status(access_token)
+        if not token_status.get('valid'):
+            self._send_error(401, token_status.get('error', 'Invalid token'))
+            return
+        
+        # 只有付费Token可以续期
+        if not token_status.get('is_paid', False):
+            self._send_error(403, 'Only paid tokens can be renewed. Please upgrade your plan.')
+            return
+        
+        # 续期Token
+        new_tokens = token_manager.renew_access_token(access_token, new_expires_in)
+        if not new_tokens:
+            self._send_error(500, 'Failed to renew token')
+            return
+        
+        self._send_json(200, {
+            'success': True,
+            'message': 'Token renewed successfully',
+            'tokens': new_tokens
+        })
+    
+    def _handle_token_status(self, data: dict):
+        """处理获取Token状态请求"""
+        # 可以从请求体或Header获取Token
+        access_token = data.get('access_token')
+        if not access_token:
+            # 尝试从Header获取
+            auth_header = self.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                access_token = auth_header[7:].strip()
+        
+        if not access_token:
+            self._send_error(400, 'access_token is required')
+            return
+        
+        token_status = token_manager.get_token_status(access_token)
+        
+        if token_status.get('valid'):
+            self._send_json(200, {
+                'success': True,
+                'status': token_status
+            })
+        else:
+            self._send_json(200, {
+                'success': False,
+                'status': token_status
+            })
     
     def _handle_create_api_key(self, data: dict):
         """处理创建API Key请求"""

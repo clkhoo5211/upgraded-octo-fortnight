@@ -1,0 +1,984 @@
+# 完整API对接指南
+
+> 适用于其他项目对接Global News Aggregator API的完整文档
+
+## 📋 目录
+
+1. [快速开始](#快速开始)
+2. [用户注册和Token获取](#用户注册和token获取)
+3. [Token管理和续期](#token管理和续期)
+4. [API使用示例](#api使用示例)
+5. [错误处理](#错误处理)
+6. [商业模式](#商业模式)
+7. [完整工作流程](#完整工作流程)
+
+---
+
+## 🚀 快速开始
+
+### API基础信息
+
+- **API地址**: `https://upgraded-octo-fortnight.vercel.app`
+- **版本**: 1.0.0
+- **认证方式**: Bearer Token (API Key或Access Token)
+- **格式**: JSON
+
+### 5分钟快速对接
+
+```python
+import requests
+
+# 1. 注册用户（免费计划）
+response = requests.post(
+    'https://upgraded-octo-fortnight.vercel.app/api/register',
+    json={'email': 'user@example.com', 'plan': 'free'}
+)
+data = response.json()
+
+# 2. 创建API Key
+api_key_response = requests.post(
+    'https://upgraded-octo-fortnight.vercel.app/api/auth/api-key',
+    headers={'Authorization': f"Bearer {data['tokens']['access_token']}"},
+    json={'name': 'my-key'}
+)
+api_key = api_key_response.json()['api_key']
+
+# 3. 使用API Key
+news_response = requests.post(
+    'https://upgraded-octo-fortnight.vercel.app/api/search',
+    headers={'Authorization': f"Bearer {api_key}"},
+    json={'categories': ['tech'], 'max_results': 10}
+)
+print(news_response.json())
+```
+
+---
+
+## 👤 用户注册和Token获取
+
+### 方式1: 用户自助注册（推荐）
+
+#### 注册端点
+
+```bash
+POST /api/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "name": "John Doe",
+  "plan": "free"
+}
+```
+
+#### 可用计划
+
+| 计划 | 速率限制 | Token有效期 | 价格 |
+|------|----------|-------------|------|
+| `free` | 100 请求/小时 | 1小时 | 免费 |
+| `basic` | 1,000 请求/小时 | 30天 | $9/月 |
+| `premium` | 10,000 请求/小时 | 30天 | $29/月 |
+
+#### 注册响应
+
+```json
+{
+  "success": true,
+  "message": "User registered successfully",
+  "user_id": "user@example.com",
+  "plan": "free",
+  "rate_limit": 100,
+  "tokens": {
+    "access_token": "at_xxx...",
+    "refresh_token": "rt_xxx...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "expires_at": "2025-11-12T15:00:00",
+    "plan": "free",
+    "is_paid": false
+  },
+  "next_step": "create_api_key"
+}
+```
+
+#### 创建API Key
+
+```bash
+POST /api/auth/api-key
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "name": "my-project-key"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "api_key": "ak_xxx...",
+  "name": "my-project-key",
+  "user_id": "user@example.com",
+  "warning": "Save this API key securely. It will not be shown again."
+}
+```
+
+### 方式2: 管理员创建用户
+
+如果API提供者不想开放公开注册，可以手动创建用户：
+
+```bash
+POST /api/auth/user
+Authorization: Bearer <admin_secret>
+Content-Type: application/json
+
+{
+  "user_id": "user@example.com",
+  "rate_limit": 1000,
+  "plan": "basic"
+}
+```
+
+---
+
+## 🔄 Token管理和续期
+
+### Token类型和有效期
+
+#### 免费Token (Free Plan)
+- **Access Token**: 1小时有效期
+- **Refresh Token**: 7天有效期
+- **特点**: 过期后需要重新登录或使用Refresh Token刷新
+
+#### 付费Token (Basic/Premium Plan)
+- **Access Token**: 30天有效期
+- **Refresh Token**: 90天有效期
+- **特点**: 可以续期，支持到期验证
+
+### 检查Token状态
+
+```bash
+POST /api/auth/token-status
+Content-Type: application/json
+
+{
+  "access_token": "at_xxx..."
+}
+```
+
+或使用Header:
+
+```bash
+GET /api/auth/token-status
+Authorization: Bearer <access_token>
+```
+
+**响应示例（有效Token）**:
+```json
+{
+  "success": true,
+  "status": {
+    "valid": true,
+    "expired": false,
+    "expires_at": "2025-11-13T15:00:00",
+    "remaining_seconds": 86400,
+    "remaining_hours": 24,
+    "plan": "basic",
+    "is_paid": true
+  }
+}
+```
+
+**响应示例（过期Token）**:
+```json
+{
+  "success": false,
+  "status": {
+    "valid": false,
+    "expired": true,
+    "expires_at": "2025-11-12T14:00:00",
+    "expired_since": 3600,
+    "plan": "basic",
+    "is_paid": true,
+    "can_renew": true
+  }
+}
+```
+
+### Token刷新（所有计划）
+
+使用Refresh Token刷新Access Token：
+
+```bash
+POST /api/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "rt_xxx..."
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "tokens": {
+    "access_token": "at_new_xxx...",
+    "refresh_token": "rt_new_xxx...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "expires_at": "2025-11-12T16:00:00",
+    "plan": "free",
+    "is_paid": false
+  }
+}
+```
+
+### Token续期（仅付费计划）
+
+付费Token可以续期，延长有效期：
+
+```bash
+POST /api/auth/renew
+Authorization: Bearer <expired_access_token>
+Content-Type: application/json
+
+{
+  "access_token": "at_xxx...",
+  "expires_in": 2592000
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Token renewed successfully",
+  "tokens": {
+    "access_token": "at_new_xxx...",
+    "refresh_token": "rt_new_xxx...",
+    "token_type": "Bearer",
+    "expires_in": 2592000,
+    "expires_at": "2025-12-12T15:00:00",
+    "plan": "premium",
+    "is_paid": true
+  }
+}
+```
+
+**注意**: 
+- 只有付费Token（`is_paid: true`）可以续期
+- 免费Token过期后只能使用Refresh Token刷新或重新登录
+
+### 升级计划并获取新Token
+
+```bash
+POST /api/upgrade
+Authorization: Bearer <current_access_token>
+Content-Type: application/json
+
+{
+  "plan": "premium"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Plan upgraded from basic to premium",
+  "old_plan": "basic",
+  "new_plan": "premium",
+  "rate_limit": 10000,
+  "tokens": {
+    "access_token": "at_new_xxx...",
+    "refresh_token": "rt_new_xxx...",
+    "expires_in": 2592000,
+    "expires_at": "2025-12-12T15:00:00",
+    "plan": "premium",
+    "is_paid": true
+  }
+}
+```
+
+---
+
+## 💻 API使用示例
+
+### Python完整示例（带Token管理）
+
+```python
+import requests
+import os
+from datetime import datetime
+from typing import Optional, Dict
+
+class NewsAPIClient:
+    """News API客户端，自动处理Token过期和续期"""
+    
+    def __init__(self, api_key: Optional[str] = None, email: Optional[str] = None):
+        """
+        初始化客户端
+        
+        Args:
+            api_key: API Key（如果已有）
+            email: 用户邮箱（如果需要自动注册）
+        """
+        self.api_base = "https://upgraded-octo-fortnight.vercel.app"
+        self.api_key = api_key or os.getenv('NEWS_API_KEY')
+        self.email = email
+        self.access_token = None
+        self.refresh_token = None
+        self.token_expires_at = None
+        self.plan = 'free'
+        self.is_paid = False
+        
+        if not self.api_key and self.email:
+            # 自动注册
+            self._register()
+    
+    def _register(self):
+        """注册用户并获取Token"""
+        response = requests.post(
+            f"{self.api_base}/api/register",
+            json={'email': self.email, 'plan': 'free'}
+        )
+        data = response.json()
+        
+        if data.get('success'):
+            self.access_token = data['tokens']['access_token']
+            self.refresh_token = data['tokens']['refresh_token']
+            self.token_expires_at = datetime.fromisoformat(data['tokens']['expires_at'])
+            self.plan = data.get('plan', 'free')
+            self.is_paid = data['tokens'].get('is_paid', False)
+            
+            # 创建API Key
+            self._create_api_key()
+    
+    def _create_api_key(self):
+        """创建API Key"""
+        response = requests.post(
+            f"{self.api_base}/api/auth/api-key",
+            headers={'Authorization': f"Bearer {self.access_token}"},
+            json={'name': 'default'}
+        )
+        data = response.json()
+        if data.get('success'):
+            self.api_key = data['api_key']
+            print(f"✅ API Key已创建: {self.api_key[:20]}...")
+    
+    def _check_token_status(self) -> Dict:
+        """检查Token状态"""
+        if not self.access_token:
+            return {'valid': False}
+        
+        response = requests.post(
+            f"{self.api_base}/api/auth/token-status",
+            json={'access_token': self.access_token}
+        )
+        return response.json().get('status', {})
+    
+    def _ensure_valid_token(self):
+        """确保Token有效，如果过期则刷新或续期"""
+        if not self.access_token:
+            return
+        
+        status = self._check_token_status()
+        
+        if not status.get('valid'):
+            if status.get('expired'):
+                if self.is_paid and status.get('can_renew'):
+                    # 付费Token可以续期
+                    self._renew_token()
+                elif self.refresh_token:
+                    # 使用Refresh Token刷新
+                    self._refresh_token()
+                else:
+                    # 重新登录
+                    self._login()
+            else:
+                # Token无效，重新登录
+                self._login()
+    
+    def _refresh_token(self):
+        """刷新Token"""
+        response = requests.post(
+            f"{self.api_base}/api/auth/refresh",
+            json={'refresh_token': self.refresh_token}
+        )
+        data = response.json()
+        if data.get('success'):
+            tokens = data['tokens']
+            self.access_token = tokens['access_token']
+            self.refresh_token = tokens['refresh_token']
+            self.token_expires_at = datetime.fromisoformat(tokens['expires_at'])
+            print("✅ Token已刷新")
+    
+    def _renew_token(self):
+        """续期Token（仅付费计划）"""
+        response = requests.post(
+            f"{self.api_base}/api/auth/renew",
+            headers={'Authorization': f"Bearer {self.access_token}"},
+            json={'access_token': self.access_token}
+        )
+        data = response.json()
+        if data.get('success'):
+            tokens = data['tokens']
+            self.access_token = tokens['access_token']
+            self.refresh_token = tokens['refresh_token']
+            self.token_expires_at = datetime.fromisoformat(tokens['expires_at'])
+            print("✅ Token已续期")
+    
+    def _login(self):
+        """登录获取Token"""
+        if not self.email:
+            raise Exception("Email required for login")
+        
+        response = requests.post(
+            f"{self.api_base}/api/auth/login",
+            json={'user_id': self.email}
+        )
+        data = response.json()
+        if data.get('success'):
+            tokens = data['tokens']
+            self.access_token = tokens['access_token']
+            self.refresh_token = tokens['refresh_token']
+            self.token_expires_at = datetime.fromisoformat(tokens['expires_at'])
+            self.plan = data.get('plan', 'free')
+            self.is_paid = tokens.get('is_paid', False)
+    
+    def search_news(self, **kwargs):
+        """搜索新闻"""
+        # 如果使用Access Token，先检查有效性
+        if self.access_token and not self.api_key:
+            self._ensure_valid_token()
+            token = self.access_token
+        else:
+            token = self.api_key
+        
+        if not token:
+            raise Exception("No API key or access token available")
+        
+        response = requests.post(
+            f"{self.api_base}/api/search",
+            headers={'Authorization': f"Bearer {token}"},
+            json=kwargs,
+            timeout=30
+        )
+        
+        if response.status_code == 401:
+            # Token可能过期，尝试刷新
+            if self.access_token:
+                self._ensure_valid_token()
+                token = self.access_token
+                response = requests.post(
+                    f"{self.api_base}/api/search",
+                    headers={'Authorization': f"Bearer {token}"},
+                    json=kwargs
+                )
+        
+        if response.status_code == 429:
+            retry_after = response.headers.get('Retry-After', '3600')
+            raise Exception(f"Rate limit exceeded. Retry after {retry_after} seconds")
+        
+        response.raise_for_status()
+        return response.json()
+    
+    def upgrade_plan(self, new_plan: str):
+        """升级计划"""
+        if not self.access_token:
+            raise Exception("Access token required for upgrade")
+        
+        self._ensure_valid_token()
+        
+        response = requests.post(
+            f"{self.api_base}/api/upgrade",
+            headers={'Authorization': f"Bearer {self.access_token}"},
+            json={'plan': new_plan}
+        )
+        
+        data = response.json()
+        if data.get('success'):
+            tokens = data['tokens']
+            self.access_token = tokens['access_token']
+            self.refresh_token = tokens['refresh_token']
+            self.token_expires_at = datetime.fromisoformat(tokens['expires_at'])
+            self.plan = new_plan
+            self.is_paid = tokens.get('is_paid', False)
+            print(f"✅ 计划已升级到 {new_plan}")
+        
+        return data
+
+# 使用示例
+if __name__ == "__main__":
+    # 方式1: 使用API Key
+    client = NewsAPIClient(api_key="ak_xxx...")
+    results = client.search_news(categories=["tech"], max_results=10)
+    print(f"找到 {results['count']} 条新闻")
+    
+    # 方式2: 自动注册
+    client = NewsAPIClient(email="user@example.com")
+    results = client.search_news(categories=["tech"], max_results=10)
+    
+    # 方式3: 升级计划
+    client.upgrade_plan("premium")
+```
+
+### JavaScript完整示例
+
+```javascript
+class NewsAPIClient {
+    constructor(apiKey, email) {
+        this.apiBase = 'https://upgraded-octo-fortnight.vercel.app';
+        this.apiKey = apiKey || process.env.NEWS_API_KEY;
+        this.email = email;
+        this.accessToken = null;
+        this.refreshToken = null;
+        this.tokenExpiresAt = null;
+        this.plan = 'free';
+        this.isPaid = false;
+        
+        if (!this.apiKey && this.email) {
+            this.register();
+        }
+    }
+    
+    async register() {
+        const response = await fetch(`${this.apiBase}/api/register`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: this.email, plan: 'free'})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            this.accessToken = data.tokens.access_token;
+            this.refreshToken = data.tokens.refresh_token;
+            this.tokenExpiresAt = new Date(data.tokens.expires_at);
+            this.plan = data.plan;
+            this.isPaid = data.tokens.is_paid;
+            
+            // 创建API Key
+            await this.createApiKey();
+        }
+    }
+    
+    async createApiKey() {
+        const response = await fetch(`${this.apiBase}/api/auth/api-key`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({name: 'default'})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            this.apiKey = data.api_key;
+            console.log(`✅ API Key已创建: ${this.apiKey.substring(0, 20)}...`);
+        }
+    }
+    
+    async checkTokenStatus() {
+        if (!this.accessToken) return {valid: false};
+        
+        const response = await fetch(`${this.apiBase}/api/auth/token-status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({access_token: this.accessToken})
+        });
+        
+        const data = await response.json();
+        return data.status || {};
+    }
+    
+    async ensureValidToken() {
+        if (!this.accessToken) return;
+        
+        const status = await this.checkTokenStatus();
+        
+        if (!status.valid) {
+            if (status.expired) {
+                if (this.isPaid && status.can_renew) {
+                    await this.renewToken();
+                } else if (this.refreshToken) {
+                    await this.refreshToken();
+                } else {
+                    await this.login();
+                }
+            } else {
+                await this.login();
+            }
+        }
+    }
+    
+    async refreshToken() {
+        const response = await fetch(`${this.apiBase}/api/auth/refresh`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({refresh_token: this.refreshToken})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            this.accessToken = data.tokens.access_token;
+            this.refreshToken = data.tokens.refresh_token;
+            this.tokenExpiresAt = new Date(data.tokens.expires_at);
+            console.log('✅ Token已刷新');
+        }
+    }
+    
+    async renewToken() {
+        const response = await fetch(`${this.apiBase}/api/auth/renew`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({access_token: this.accessToken})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            this.accessToken = data.tokens.access_token;
+            this.refreshToken = data.tokens.refresh_token;
+            this.tokenExpiresAt = new Date(data.tokens.expires_at);
+            console.log('✅ Token已续期');
+        }
+    }
+    
+    async searchNews(options = {}) {
+        // 如果使用Access Token，先检查有效性
+        if (this.accessToken && !this.apiKey) {
+            await this.ensureValidToken();
+        }
+        
+        const token = this.apiKey || this.accessToken;
+        if (!token) {
+            throw new Error('No API key or access token available');
+        }
+        
+        const response = await fetch(`${this.apiBase}/api/search`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(options)
+        });
+        
+        if (response.status === 401 && this.accessToken) {
+            await this.ensureValidToken();
+            const retryResponse = await fetch(`${this.apiBase}/api/search`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(options)
+            });
+            return await retryResponse.json();
+        }
+        
+        if (response.status === 429) {
+            const retryAfter = response.headers.get('Retry-After');
+            throw new Error(`Rate limit exceeded. Retry after ${retryAfter} seconds`);
+        }
+        
+        return await response.json();
+    }
+    
+    async upgradePlan(newPlan) {
+        if (!this.accessToken) {
+            throw new Error('Access token required for upgrade');
+        }
+        
+        await this.ensureValidToken();
+        
+        const response = await fetch(`${this.apiBase}/api/upgrade`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({plan: newPlan})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            this.accessToken = data.tokens.access_token;
+            this.refreshToken = data.tokens.refresh_token;
+            this.tokenExpiresAt = new Date(data.tokens.expires_at);
+            this.plan = newPlan;
+            this.isPaid = data.tokens.is_paid;
+            console.log(`✅ 计划已升级到 ${newPlan}`);
+        }
+        
+        return data;
+    }
+}
+
+// 使用示例
+(async () => {
+    // 方式1: 使用API Key
+    const client1 = new NewsAPIClient('ak_xxx...');
+    const results1 = await client1.searchNews({categories: ['tech'], max_results: 10});
+    console.log(`找到 ${results1.count} 条新闻`);
+    
+    // 方式2: 自动注册
+    const client2 = new NewsAPIClient(null, 'user@example.com');
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 等待注册完成
+    const results2 = await client2.searchNews({categories: ['tech'], max_results: 10});
+    
+    // 方式3: 升级计划
+    await client2.upgradePlan('premium');
+})();
+```
+
+---
+
+## ⚠️ 错误处理
+
+### 常见错误码
+
+| 状态码 | 说明 | 解决方案 |
+|--------|------|----------|
+| `200` | 成功 | - |
+| `400` | 请求参数错误 | 检查请求参数 |
+| `401` | 未认证或Token无效/过期 | 刷新Token或重新登录 |
+| `403` | 权限不足 | 检查用户是否被禁用或计划限制 |
+| `429` | 速率限制 | 等待后重试或升级计划 |
+| `500` | 服务器错误 | 稍后重试或联系支持 |
+
+### Token过期处理流程
+
+```python
+def handle_token_expiry(client, func, *args, **kwargs):
+    """处理Token过期的通用函数"""
+    try:
+        return func(*args, **kwargs)
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 401:
+            # Token过期，尝试刷新
+            if client.refresh_token:
+                client._refresh_token()
+                return func(*args, **kwargs)
+            elif client.is_paid:
+                # 付费Token可以续期
+                client._renew_token()
+                return func(*args, **kwargs)
+            else:
+                # 免费Token需要重新登录
+                client._login()
+                return func(*args, **kwargs)
+        raise
+```
+
+---
+
+## 💰 商业模式
+
+### 计划对比
+
+| 特性 | Free | Basic | Premium |
+|------|------|-------|---------|
+| 速率限制 | 100/小时 | 1,000/小时 | 10,000/小时 |
+| Token有效期 | 1小时 | 30天 | 30天 |
+| Refresh Token | 7天 | 90天 | 90天 |
+| Token续期 | ❌ | ✅ | ✅ |
+| 价格 | 免费 | $9/月 | $29/月 |
+
+### 付费流程
+
+1. **用户注册免费计划**
+2. **测试API功能**
+3. **升级到付费计划** (`POST /api/upgrade`)
+4. **自动获得新的30天Token**
+5. **Token过期前续期** (`POST /api/auth/renew`)
+
+---
+
+## 📝 完整工作流程
+
+### 对于普通用户
+
+#### 场景1: 首次使用（免费计划）
+
+```python
+# 1. 注册
+client = NewsAPIClient(email="user@example.com")
+
+# 2. 使用API（自动使用API Key）
+results = client.search_news(categories=["tech"])
+
+# 3. Token过期时自动刷新
+# 客户端会自动处理Token刷新
+```
+
+#### 场景2: 升级到付费计划
+
+```python
+# 1. 升级计划
+client.upgrade_plan("premium")
+
+# 2. 获得新的30天Token
+# 3. Token过期前续期
+status = client.checkTokenStatus()
+if status.get('remaining_hours', 0) < 24:  # 剩余不足24小时
+    client.renewToken()
+```
+
+#### 场景3: 使用API Key（推荐）
+
+```python
+# 1. 注册并获取API Key
+client = NewsAPIClient(email="user@example.com")
+# API Key已自动创建
+
+# 2. 保存API Key到环境变量
+# export NEWS_API_KEY=ak_xxx...
+
+# 3. 在其他项目中使用
+client = NewsAPIClient(api_key=os.getenv('NEWS_API_KEY'))
+```
+
+### 对于API提供者
+
+#### 环境变量设置
+
+在Vercel Dashboard设置：
+
+```
+ENABLE_API_AUTH=true
+ADMIN_SECRET=your-secret-admin-key-here
+```
+
+#### 用户管理
+
+```bash
+# 查看所有用户
+curl -H "Authorization: Bearer <admin_secret>" \
+  https://upgraded-octo-fortnight.vercel.app/api/auth/users
+
+# 手动创建用户
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/user \
+  -H "Authorization: Bearer <admin_secret>" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "user@example.com", "rate_limit": 1000, "plan": "basic"}'
+
+# 升级用户计划
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/user \
+  -H "Authorization: Bearer <admin_secret>" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "user@example.com", "rate_limit": 10000, "plan": "premium"}'
+```
+
+---
+
+## 🔍 Token到期验证逻辑
+
+### 免费Token
+
+- **过期时间**: 1小时
+- **过期后**: 
+  - ✅ 可以使用Refresh Token刷新（7天内）
+  - ✅ 可以重新登录获取新Token
+  - ❌ 不能续期
+
+### 付费Token
+
+- **过期时间**: 30天
+- **过期后**:
+  - ✅ 可以使用Refresh Token刷新（90天内）
+  - ✅ 可以续期（`POST /api/auth/renew`）
+  - ✅ 可以重新登录获取新Token
+
+### 验证Token是否过期
+
+```python
+def is_token_expired(access_token):
+    """检查Token是否过期"""
+    response = requests.post(
+        'https://upgraded-octo-fortnight.vercel.app/api/auth/token-status',
+        json={'access_token': access_token}
+    )
+    status = response.json().get('status', {})
+    return status.get('expired', False)
+```
+
+---
+
+## 📊 所有可用端点总结
+
+### 认证和注册
+
+| 端点 | 方法 | 说明 | 需要认证 |
+|------|------|------|----------|
+| `/api/register` | POST | 用户注册 | ❌ |
+| `/api/auth/login` | POST | 登录获取Token | ❌ |
+| `/api/auth/refresh` | POST | 刷新Token | ❌ |
+| `/api/auth/renew` | POST | 续期Token（付费） | ✅ |
+| `/api/auth/api-key` | POST | 创建API Key | ✅ |
+| `/api/auth/me` | GET | 获取用户信息 | ✅ |
+| `/api/auth/rate-limit` | GET | 获取速率限制 | ✅ |
+| `/api/auth/token-status` | POST/GET | 获取Token状态 | ✅ |
+| `/api/upgrade` | POST | 升级计划 | ✅ |
+
+### API功能
+
+| 端点 | 方法 | 说明 | 需要认证 |
+|------|------|------|----------|
+| `/api/search` | GET/POST | 搜索新闻 | ✅（如果启用） |
+| `/api/download` | GET/POST | 下载内容 | ✅（如果启用） |
+| `/api/archive` | POST | 完整归档 | ✅（如果启用） |
+| `/api/auto_archive` | GET | 自动归档 | ❌ |
+
+### 管理端点（管理员）
+
+| 端点 | 方法 | 说明 | 需要认证 |
+|------|------|------|----------|
+| `/api/auth/user` | POST | 创建用户 | ✅ Admin |
+| `/api/auth/users` | GET | 列出用户 | ✅ Admin |
+| `/api/auth/api-keys` | GET | 列出API Keys | ✅ Admin |
+
+---
+
+## ✅ 总结
+
+### Token管理最佳实践
+
+1. **使用API Key**（推荐）
+   - 长期有效，不需要刷新
+   - 适合生产环境
+
+2. **使用Access Token**
+   - 免费计划：1小时，需要定期刷新
+   - 付费计划：30天，可以续期
+
+3. **Token过期处理**
+   - 免费Token：使用Refresh Token刷新或重新登录
+   - 付费Token：可以续期或刷新
+
+### 对接步骤
+
+1. ✅ 用户注册 (`POST /api/register`)
+2. ✅ 创建API Key (`POST /api/auth/api-key`)
+3. ✅ 使用API Key调用API
+4. ✅ 监控Token状态（如果使用Access Token）
+5. ✅ 处理Token过期（自动刷新或续期）
+
+---
+
+## 📚 相关文档
+
+- [API使用指南](./API_USAGE_GUIDE.md) - 完整的API端点说明
+- [API安全指南](../security/API_SECURITY_GUIDE.md) - 认证和安全配置
+- [用户注册指南](../security/USER_REGISTRATION_GUIDE.md) - 用户注册流程
+- [商业模式指南](../security/BUSINESS_MODEL_GUIDE.md) - 商业模式实现
+
+---
+
+**最后更新**: 2025-11-12
+

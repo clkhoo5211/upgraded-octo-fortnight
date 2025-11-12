@@ -110,8 +110,9 @@ class handler(BaseHTTPRequestHandler):
             # 设置速率限制
             rate_limiter.set_rate_limit(user_id, rate_limit)
             
-            # 自动登录并返回Token
-            tokens = token_manager.generate_access_token(user_id)
+            # 自动登录并返回Token（根据计划设置）
+            is_paid = plan in ['basic', 'premium']
+            tokens = token_manager.generate_access_token(user_id, plan=plan, is_paid=is_paid)
             
             self._send_json(201, {
                 'success': True,

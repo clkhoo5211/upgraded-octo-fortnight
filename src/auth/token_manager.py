@@ -100,13 +100,21 @@ class TokenManager:
         
         return api_key
     
-    def generate_access_token(self, user_id: str, expires_in: int = 3600) -> Dict[str, str]:
+    def generate_access_token(
+        self,
+        user_id: str,
+        expires_in: int = 3600,
+        plan: str = 'free',
+        is_paid: bool = False
+    ) -> Dict[str, str]:
         """
         生成Access Token和Refresh Token
         
         Args:
             user_id: 用户ID
             expires_in: Access Token过期时间（秒），默认1小时
+            plan: 用户计划（free/basic/premium）
+            is_paid: 是否为付费Token
         
         Returns:
             包含access_token和refresh_token的字典
@@ -117,14 +125,26 @@ class TokenManager:
         hashed_access = self._hash_token(access_token)
         hashed_refresh = self._hash_token(refresh_token)
         
-        expires_at = datetime.now() + timedelta(seconds=expires_in)
-        refresh_expires_at = datetime.now() + timedelta(days=30)  # Refresh Token 30天过期
+        # 根据计划设置过期时间
+        if is_paid:
+            # 付费Token：30天
+            expires_in = 30 * 24 * 3600
+            refresh_expires_at = datetime.now() + timedelta(days=90)  # Refresh Token 90天
+        else:
+            # 免费Token：1小时
+            expires_in = 3600
+            refresh_expires_at = datetime.now() + timedelta(days=7)  # Refresh Token 7天
         
-        # 存储Access Token
+        expires_at = datetime.now() + timedelta(seconds=expires_in)
+        
+        # 存储Access Token（包含计划信息）
         self.tokens_data['access_tokens'][hashed_access] = {
             'user_id': user_id,
             'expires_at': expires_at.isoformat(),
-            'created_at': datetime.now().isoformat()
+            'created_at': datetime.now().isoformat(),
+            'plan': plan,
+            'is_paid': is_paid,
+            'expires_in': expires_in
         }
         
         # 存储Refresh Token
@@ -132,7 +152,9 @@ class TokenManager:
             'user_id': user_id,
             'access_token_hash': hashed_access,
             'expires_at': refresh_expires_at.isoformat(),
-            'created_at': datetime.now().isoformat()
+            'created_at': datetime.now().isoformat(),
+            'plan': plan,
+            'is_paid': is_paid
         }
         
         self._save_tokens()
@@ -142,7 +164,9 @@ class TokenManager:
             'refresh_token': refresh_token,
             'token_type': 'Bearer',
             'expires_in': expires_in,
-            'expires_at': expires_at.isoformat()
+            'expires_at': expires_at.isoformat(),
+            'plan': plan,
+            'is_paid': is_paid
         }
     
     def verify_api_key(self, api_key: str) -> Optional[Dict]:
@@ -198,10 +222,16 @@ class TokenManager:
             
             expires_at = datetime.fromisoformat(token_info['expires_at'])
             if datetime.now() > expires_at:
-                # Token已过期，删除
-                del self.tokens_data['access_tokens'][hashed_token]
+                # Token已过期，标记但保留（用于续期）
+                token_info['expired'] = True
                 self._save_tokens()
-                return None
+                return {
+                    'expired': True,
+                    'expires_at': expires_at.isoformat(),
+                    'user_id': token_info.get('user_id'),
+                    'plan': token_info.get('plan', 'free'),
+                    'is_paid': token_info.get('is_paid', False)
+                }
             
             user_id = token_info['user_id']
             user_info = self.tokens_data['users'].get(user_id)
@@ -211,10 +241,105 @@ class TokenManager:
             
             return {
                 'user_id': user_id,
-                'rate_limit': user_info.get('rate_limit', 1000)
+                'rate_limit': user_info.get('rate_limit', 1000),
+                'plan': token_info.get('plan', 'free'),
+                'is_paid': token_info.get('is_paid', False),
+                'expires_at': expires_at.isoformat(),
+                'expired': False
             }
         
         return None
+    
+    def renew_access_token(
+        self,
+        access_token: str,
+        new_expires_in: Optional[int] = None
+    ) -> Optional[Dict[str, str]]:
+        """
+        续期Access Token（付费用户）
+        
+        Args:
+            access_token: 旧的Access Token
+            new_expires_in: 新的过期时间（秒），如果为None则根据计划自动设置
+        
+        Returns:
+            新的Token信息，如果无法续期返回None
+        """
+        hashed_token = self._hash_token(access_token)
+        
+        if hashed_token in self.tokens_data['access_tokens']:
+            token_info = self.tokens_data['access_tokens'][hashed_token]
+            user_id = token_info['user_id']
+            plan = token_info.get('plan', 'free')
+            is_paid = token_info.get('is_paid', False)
+            
+            # 检查用户是否仍然有效
+            user_info = self.tokens_data['users'].get(user_id)
+            if not user_info or not user_info.get('enabled', True):
+                return None
+            
+            # 删除旧Token
+            del self.tokens_data['access_tokens'][hashed_token]
+            
+            # 删除对应的Refresh Token
+            for refresh_hash, refresh_info in list(self.tokens_data['refresh_tokens'].items()):
+                if refresh_info.get('access_token_hash') == hashed_token:
+                    del self.tokens_data['refresh_tokens'][refresh_hash]
+                    break
+            
+            # 生成新Token
+            if new_expires_in:
+                expires_in = new_expires_in
+            else:
+                expires_in = None  # 使用默认值
+            
+            return self.generate_access_token(user_id, expires_in, plan, is_paid)
+        
+        return None
+    
+    def get_token_status(self, access_token: str) -> Dict:
+        """
+        获取Token状态（是否过期、剩余时间等）
+        
+        Args:
+            access_token: Access Token字符串
+        
+        Returns:
+            Token状态信息
+        """
+        hashed_token = self._hash_token(access_token)
+        
+        if hashed_token not in self.tokens_data['access_tokens']:
+            return {
+                'valid': False,
+                'error': 'Token not found'
+            }
+        
+        token_info = self.tokens_data['access_tokens'][hashed_token]
+        expires_at = datetime.fromisoformat(token_info['expires_at'])
+        now = datetime.now()
+        
+        if now > expires_at:
+            return {
+                'valid': False,
+                'expired': True,
+                'expires_at': expires_at.isoformat(),
+                'expired_since': (now - expires_at).total_seconds(),
+                'plan': token_info.get('plan', 'free'),
+                'is_paid': token_info.get('is_paid', False),
+                'can_renew': token_info.get('is_paid', False)  # 只有付费Token可以续期
+            }
+        else:
+            remaining = (expires_at - now).total_seconds()
+            return {
+                'valid': True,
+                'expired': False,
+                'expires_at': expires_at.isoformat(),
+                'remaining_seconds': remaining,
+                'remaining_hours': remaining / 3600,
+                'plan': token_info.get('plan', 'free'),
+                'is_paid': token_info.get('is_paid', False)
+            }
     
     def refresh_access_token(self, refresh_token: str) -> Optional[Dict]:
         """
