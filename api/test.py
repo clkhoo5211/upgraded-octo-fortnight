@@ -2,22 +2,27 @@
 最简单的测试端点
 """
 import json
+from http.server import BaseHTTPRequestHandler
 
-def handler(request):
-    """最简单的测试handler"""
-    try:
-        return json.dumps({
-            'status': 'ok',
-            'message': 'Test endpoint works',
-            'handler_format': 'tuple_return'
-        }), {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        }
-    except Exception as e:
-        return json.dumps({
-            'error': str(e),
-            'type': type(e).__name__
-        }), {
-            'Content-Type': 'application/json'
-        }
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        try:
+            response_data = {
+                'status': 'ok',
+                'message': 'Test endpoint works',
+                'handler_format': 'BaseHTTPRequestHandler'
+            }
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(response_data).encode('utf-8'))
+        except Exception as e:
+            error_response = {
+                'error': str(e),
+                'type': type(e).__name__
+            }
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
