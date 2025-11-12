@@ -3,10 +3,6 @@ Vercel Serverless Functions入口 - API首页
 """
 import os
 import json
-import sys
-
-# 添加src到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 def handler(request):
     """Vercel Serverless Function入口"""
@@ -76,27 +72,18 @@ def handler(request):
             'documentation': 'https://github.com/clkhoo5211/upgraded-octo-fortnight'
         }
         
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps(response_data, ensure_ascii=False)
+        return json.dumps(response_data, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         }
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        print(f"错误: {error_trace}")
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({
-                'error': str(e),
-                'traceback': error_trace,
-                'service': 'Global News Aggregator API'
-            }, ensure_ascii=False)
+        return json.dumps({
+            'error': str(e),
+            'traceback': error_trace,
+            'service': 'Global News Aggregator API'
+        }, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         }

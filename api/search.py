@@ -25,7 +25,6 @@ def get_news_searcher():
             serpapi_key=os.getenv('SERPAPI_KEY'),
             enable_filter=os.getenv('ENABLE_NEWS_FILTER', 'true').lower() == 'true'
         )
-        # 加载自定义关键词
         try:
             custom_keywords = news_searcher.load_custom_keywords()
             if custom_keywords:
@@ -35,24 +34,7 @@ def get_news_searcher():
     return news_searcher
 
 def handler(request):
-    """
-    搜索全网新闻
-    
-    请求参数:
-        keywords: 搜索关键词（可选）
-        categories: 新闻分类数组（可选）
-        languages: 语言过滤 (zh/en/all)，默认all
-        date_range: 日期范围 (yesterday/last_7_days/last_30_days)，默认last_7_days
-        max_results: 最大结果数，默认50
-    
-    返回:
-        {
-            "success": true,
-            "count": 10,
-            "news": [...],
-            "search_params": {...}
-        }
-    """
+    """搜索全网新闻"""
     try:
         # 解析请求
         method = request.get('httpMethod', 'GET') if isinstance(request, dict) else 'GET'
@@ -65,10 +47,8 @@ def handler(request):
             else:
                 data = body
         else:
-            # GET请求从queryStringParameters获取
             query_params = request.get('queryStringParameters') if isinstance(request, dict) else {}
             data = (query_params or {}).copy()
-            # 处理数组参数
             if 'categories' in data and isinstance(data['categories'], str):
                 data['categories'] = data['categories'].split(',')
         
@@ -110,13 +90,9 @@ def handler(request):
             }
         }
         
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps(response_data, ensure_ascii=False)
+        return json.dumps(response_data, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         }
     
     except Exception as e:
@@ -124,17 +100,13 @@ def handler(request):
         error_trace = traceback.format_exc()
         print(f"搜索错误: {error_trace}")
         
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({
-                'success': False,
-                'error': str(e),
-                'traceback': error_trace,
-                'count': 0,
-                'news': []
-            }, ensure_ascii=False)
+        return json.dumps({
+            'success': False,
+            'error': str(e),
+            'traceback': error_trace,
+            'count': 0,
+            'news': []
+        }, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         }
