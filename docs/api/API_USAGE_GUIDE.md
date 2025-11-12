@@ -784,14 +784,264 @@ else:
 
 ## 🔐 认证说明
 
-### 公开API
+### 认证状态
 
-大部分端点**不需要认证**，可以直接使用：
+API认证功能是**可选的**，通过环境变量`ENABLE_API_AUTH`控制：
 
-- `/api/search`
-- `/api/download`
-- `/api/health`
-- `/api/manage_categories` (GET)
+- **未启用认证** (`ENABLE_API_AUTH=false` 或未设置): 所有端点公开访问
+- **已启用认证** (`ENABLE_API_AUTH=true`): 需要API Key或Token才能访问
+
+### 如何获取API Key和Token
+
+#### 步骤1: 确保认证已启用
+
+联系API管理员确认认证功能已启用，或查看API健康检查端点：
+```bash
+curl https://upgraded-octo-fortnight.vercel.app/api/health
+```
+
+#### 步骤2: 创建用户（管理员操作）
+
+如果你是API管理员，需要先创建用户：
+```bash
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/user \
+  -H "Authorization: Bearer <admin_secret>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "my-app",
+    "rate_limit": 1000
+  }'
+```
+
+#### 步骤3: 登录获取Token
+
+```bash
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "my-app"}'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "tokens": {
+    "access_token": "at_xxx...",
+    "refresh_token": "rt_xxx...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "expires_at": "2025-11-12T14:00:00"
+  },
+  "user_id": "my-app"
+}
+```
+
+#### 步骤4: 创建API Key（推荐，长期使用）
+
+使用Access Token创建API Key：
+```bash
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/api-key \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "production-key"}'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "api_key": "ak_xxx...",
+  "name": "production-key",
+  "user_id": "my-app",
+  "warning": "Save this API key securely. It will not be shown again."
+}
+```
+
+⚠️ **重要**: API Key只会显示一次，请妥善保存！
+
+#### 步骤5: 使用API Key调用API
+
+```bash
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/search \
+  -H "Authorization: Bearer ak_xxx..." \
+  -H "Content-Type: application/json" \
+  -d '{"categories": ["tech"], "max_results": 10}'
+```
+
+### Token刷新机制
+
+Access Token有效期为1小时，过期后需要使用Refresh Token刷新：
+
+```bash
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "rt_xxx..."}'
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "tokens": {
+    "access_token": "at_new_xxx...",
+    "refresh_token": "rt_new_xxx...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "expires_at": "2025-11-12T15:00:00"
+  }
+}
+```
+
+### 在其他仓库中使用
+
+#### GitHub Actions示例
+
+```yaml
+name: Use News API
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch news with API Key
+        env:
+          API_KEY: ${{ secrets.NEWS_API_KEY }}
+        run: |
+          curl -X POST https://upgraded-octo-fortnight.vercel.app/api/search \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"categories": ["tech"], "max_results": 10}' \
+            | jq '.count'
+```
+
+**设置GitHub Secrets**:
+1. 进入仓库 Settings → Secrets and variables → Actions
+2. 点击 "New repository secret"
+3. 名称: `NEWS_API_KEY`
+4. 值: 你的API Key（`ak_xxx...`）
+
+#### Python项目示例
+
+```python
+import os
+import requests
+
+# 从环境变量获取API Key
+API_KEY = os.getenv('NEWS_API_KEY')
+API_BASE = "https://upgraded-octo-fortnight.vercel.app"
+
+def search_news(categories=None):
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(
+        f"{API_BASE}/api/search",
+        json={"categories": categories, "max_results": 10},
+        headers=headers
+    )
+    
+    if response.status_code == 401:
+        raise Exception("无效的API Key")
+    elif response.status_code == 429:
+        raise Exception("速率限制：请求过于频繁")
+    
+    return response.json()
+
+# 使用
+results = search_news(categories=["tech"])
+print(f"找到 {results['count']} 条新闻")
+```
+
+**设置环境变量**:
+```bash
+# Linux/Mac
+export NEWS_API_KEY="ak_xxx..."
+
+# Windows
+set NEWS_API_KEY=ak_xxx...
+
+# 或在.env文件中
+NEWS_API_KEY=ak_xxx...
+```
+
+#### JavaScript/Node.js项目示例
+
+```javascript
+// 从环境变量获取API Key
+const API_KEY = process.env.NEWS_API_KEY;
+const API_BASE = 'https://upgraded-octo-fortnight.vercel.app';
+
+async function searchNews(categories) {
+  const response = await fetch(`${API_BASE}/api/search`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      categories,
+      max_results: 10
+    })
+  });
+  
+  if (response.status === 401) {
+    throw new Error('无效的API Key');
+  }
+  
+  if (response.status === 429) {
+    throw new Error('速率限制：请求过于频繁');
+  }
+  
+  return await response.json();
+}
+
+// 使用
+searchNews(['tech'])
+  .then(results => console.log(`找到 ${results.count} 条新闻`))
+  .catch(error => console.error(error));
+```
+
+**设置环境变量**:
+```bash
+# .env文件
+NEWS_API_KEY=ak_xxx...
+```
+
+### 认证方式
+
+支持三种认证方式（按优先级）：
+
+1. **Authorization Header**（推荐）:
+   ```
+   Authorization: Bearer <api_key_or_token>
+   ```
+
+2. **X-API-Key Header**:
+   ```
+   X-API-Key: <api_key>
+   ```
+
+3. **Query参数**:
+   ```
+   ?api_key=<api_key>
+   ```
+
+### 速率限制
+
+- **默认限制**: 1000 请求/小时
+- **可自定义**: 每个用户可以设置不同的限制
+- **超过限制**: 返回429错误，包含`Retry-After`头
+
+查看当前速率限制：
+```bash
+curl -H "Authorization: Bearer <token>" \
+  https://upgraded-octo-fortnight.vercel.app/api/auth/rate-limit
+```
 
 ### 需要GitHub Token的端点
 

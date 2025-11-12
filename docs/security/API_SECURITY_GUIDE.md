@@ -14,16 +14,18 @@
 
 ## 🚀 快速开始
 
-### 1. 启用认证
+### 场景1: API管理员设置认证系统
 
-在Vercel环境变量中设置：
+#### 步骤1: 启用认证
+
+在Vercel Dashboard设置环境变量：
 
 ```
 ENABLE_API_AUTH=true
 ADMIN_SECRET=your-secret-admin-key-here
 ```
 
-### 2. 创建用户（管理员操作）
+#### 步骤2: 创建用户
 
 ```bash
 curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/user \
@@ -35,12 +37,10 @@ curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/user \
   }'
 ```
 
-### 3. 获取API Key或Token
-
-**方式1: 获取API Key（推荐）**
+#### 步骤3: 为用户生成API Key
 
 ```bash
-# 首先登录获取Access Token
+# 首先用户登录获取Access Token
 curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"user_id": "user123"}'
@@ -49,23 +49,300 @@ curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/login \
 curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/api-key \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <access_token>" \
-  -d '{"name": "my-api-key"}'
+  -d '{"name": "production-key"}'
 ```
 
-**方式2: 使用Access Token**
+### 场景2: 在其他仓库/项目中使用API
 
-登录后直接使用返回的`access_token`。
+#### 步骤1: 获取API Key
 
-### 4. 使用API Key调用API
+联系API管理员获取API Key，或使用已有的用户ID登录：
 
 ```bash
-curl -X POST https://upgraded-octo-fortnight.vercel.app/api/search \
+# 登录获取Token
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/login \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ak_your-api-key-here" \
-  -d '{
-    "categories": ["tech"],
-    "max_results": 10
-  }'
+  -d '{"user_id": "your-user-id"}'
+
+# 创建API Key（推荐用于生产环境）
+curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/api-key \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-project-key"}'
+```
+
+#### 步骤2: 保存API Key到安全位置
+
+**GitHub仓库**:
+1. 进入仓库 Settings → Secrets and variables → Actions
+2. 点击 "New repository secret"
+3. 名称: `NEWS_API_KEY`
+4. 值: 你的API Key（`ak_xxx...`）
+
+**本地项目**:
+创建`.env`文件（不要提交到Git）:
+```
+NEWS_API_KEY=ak_xxx...
+```
+
+#### 步骤3: 在代码中使用API Key
+
+**Python示例**:
+```python
+import os
+import requests
+
+API_KEY = os.getenv('NEWS_API_KEY')
+API_BASE = "https://upgraded-octo-fortnight.vercel.app"
+
+response = requests.post(
+    f"{API_BASE}/api/search",
+    headers={"Authorization": f"Bearer {API_KEY}"},
+    json={"categories": ["tech"], "max_results": 10}
+)
+```
+
+**JavaScript示例**:
+```javascript
+const API_KEY = process.env.NEWS_API_KEY;
+const API_BASE = 'https://upgraded-octo-fortnight.vercel.app';
+
+const response = await fetch(`${API_BASE}/api/search`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${API_KEY}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    categories: ['tech'],
+    max_results: 10
+  })
+});
+```
+
+**GitHub Actions示例**:
+```yaml
+- name: Fetch news
+  env:
+    API_KEY: ${{ secrets.NEWS_API_KEY }}
+  run: |
+    curl -X POST https://upgraded-octo-fortnight.vercel.app/api/search \
+      -H "Authorization: Bearer $API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"categories": ["tech"], "max_results": 10}'
+```
+
+#### 步骤4: Token刷新（如果使用Access Token）
+
+如果使用Access Token而不是API Key，需要定期刷新：
+
+```python
+import requests
+import os
+from datetime import datetime, timedelta
+
+class NewsAPIClient:
+    def __init__(self, user_id, refresh_token=None):
+        self.user_id = user_id
+        self.refresh_token = refresh_token
+        self.access_token = None
+        self.token_expires_at = None
+        self.api_base = "https://upgraded-octo-fortnight.vercel.app"
+    
+    def _ensure_valid_token(self):
+        """确保Token有效，如果过期则刷新"""
+        if self.access_token and self.token_expires_at:
+            if datetime.now() < self.token_expires_at:
+                return  # Token仍然有效
+        
+        # Token过期或不存在，刷新
+        if self.refresh_token:
+            self._refresh_token()
+        else:
+            self._login()
+    
+    def _login(self):
+        """登录获取Token"""
+        response = requests.post(
+            f"{self.api_base}/api/auth/login",
+            json={"user_id": self.user_id}
+        )
+        data = response.json()
+        self.access_token = data['tokens']['access_token']
+        self.refresh_token = data['tokens']['refresh_token']
+        expires_at = datetime.fromisoformat(data['tokens']['expires_at'])
+        self.token_expires_at = expires_at
+    
+    def _refresh_token(self):
+        """刷新Token"""
+        response = requests.post(
+            f"{self.api_base}/api/auth/refresh",
+            json={"refresh_token": self.refresh_token}
+        )
+        data = response.json()
+        self.access_token = data['tokens']['access_token']
+        self.refresh_token = data['tokens']['refresh_token']
+        expires_at = datetime.fromisoformat(data['tokens']['expires_at'])
+        self.token_expires_at = expires_at
+    
+    def search_news(self, **kwargs):
+        """搜索新闻"""
+        self._ensure_valid_token()
+        
+        response = requests.post(
+            f"{self.api_base}/api/search",
+            headers={"Authorization": f"Bearer {self.access_token}"},
+            json=kwargs
+        )
+        return response.json()
+
+# 使用示例
+client = NewsAPIClient("user123")
+results = client.search_news(categories=["tech"], max_results=10)
+```
+
+### 完整工作流程示例
+
+#### 在GitHub Actions中使用
+
+```yaml
+name: Daily News Fetch
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # 每天UTC 9点
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Fetch news
+        env:
+          API_KEY: ${{ secrets.NEWS_API_KEY }}
+        run: |
+          curl -X POST https://upgraded-octo-fortnight.vercel.app/api/search \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "categories": ["tech", "finance"],
+              "date_range": "today_and_yesterday",
+              "max_results": 50
+            }' > news.json
+      
+      - name: Commit results
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add news.json
+          git commit -m "Update news" || exit 0
+          git push
+```
+
+#### 在Python项目中使用
+
+```python
+# requirements.txt
+requests>=2.31.0
+
+# main.py
+import os
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()  # 加载.env文件
+
+API_KEY = os.getenv('NEWS_API_KEY')
+API_BASE = "https://upgraded-octo-fortnight.vercel.app"
+
+def fetch_news(categories=None, max_results=50):
+    """获取新闻"""
+    response = requests.post(
+        f"{API_BASE}/api/search",
+        headers={
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "categories": categories,
+            "date_range": "today_and_yesterday",
+            "max_results": max_results
+        },
+        timeout=30
+    )
+    
+    if response.status_code == 401:
+        raise Exception("无效的API Key，请检查环境变量")
+    elif response.status_code == 429:
+        retry_after = response.headers.get('Retry-After', '3600')
+        raise Exception(f"速率限制，请在 {retry_after} 秒后重试")
+    
+    response.raise_for_status()
+    return response.json()
+
+if __name__ == "__main__":
+    results = fetch_news(categories=["tech"], max_results=10)
+    print(f"找到 {results['count']} 条新闻")
+    for news in results['news']:
+        print(f"- {news['title']}")
+```
+
+#### 在Node.js项目中使用
+
+```javascript
+// package.json
+{
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "node-fetch": "^3.0.0"
+  }
+}
+
+// index.js
+require('dotenv').config();
+const fetch = require('node-fetch');
+
+const API_KEY = process.env.NEWS_API_KEY;
+const API_BASE = 'https://upgraded-octo-fortnight.vercel.app';
+
+async function fetchNews(categories, maxResults = 50) {
+  const response = await fetch(`${API_BASE}/api/search`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      categories,
+      date_range: 'today_and_yesterday',
+      max_results: maxResults
+    })
+  });
+  
+  if (response.status === 401) {
+    throw new Error('无效的API Key，请检查环境变量');
+  }
+  
+  if (response.status === 429) {
+    const retryAfter = response.headers.get('Retry-After');
+    throw new Error(`速率限制，请在 ${retryAfter} 秒后重试`);
+  }
+  
+  return await response.json();
+}
+
+// 使用
+fetchNews(['tech'], 10)
+  .then(results => {
+    console.log(`找到 ${results.count} 条新闻`);
+    results.news.forEach(news => {
+      console.log(`- ${news.title}`);
+    });
+  })
+  .catch(error => console.error(error));
 ```
 
 ---
