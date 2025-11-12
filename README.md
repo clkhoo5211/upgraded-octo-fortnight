@@ -239,6 +239,22 @@ jobs:
           "
 ```
 
+## 📚 API集成文档
+
+**想要在其他项目中使用此API？**
+
+👉 **[完整集成指南](./docs/api/COMPLETE_INTEGRATION_GUIDE.md)** - ⭐ **推荐：其他项目集成此API的完整指南**
+
+包含：
+- ✅ 5分钟快速开始
+- ✅ 用户注册和Token获取
+- ✅ Python和JavaScript完整客户端代码（可直接复制使用）
+- ✅ Token管理和续期
+- ✅ 错误处理
+- ✅ 所有API端点说明
+
+---
+
 ## 🚀 Vercel部署（HTTP API模式）
 
 除了作为MCP服务运行，本项目还支持部署到Vercel作为HTTP API服务。
