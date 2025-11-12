@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.news_tools import NewsSearcher
+from src.auth.auth_middleware import auth_middleware
 
 # 全局搜索器实例
 news_searcher = None
@@ -52,6 +53,24 @@ class handler(BaseHTTPRequestHandler):
     def _handle_request(self):
         """处理搜索请求"""
         try:
+            # 认证检查（如果启用）
+            authenticated, user_info, error = auth_middleware.authenticate_request(
+                self,
+                endpoint="search"
+            )
+            
+            if not authenticated:
+                # 返回认证错误
+                status_code = 429 if error and error.get('error') == 'Rate limit exceeded' else 401
+                self.send_response(status_code)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                if status_code == 429:
+                    self.send_header('Retry-After', '3600')
+                self.end_headers()
+                self.wfile.write(json.dumps(error, ensure_ascii=False).encode('utf-8'))
+                return
+            
             # 获取请求参数
             if self.command == 'POST':
                 content_length = int(self.headers.get('Content-Length', 0))
