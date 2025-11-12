@@ -140,6 +140,58 @@ Content-Type: application/json
 }
 ```
 
+**响应**:
+```json
+{
+  "success": true,
+  "user_id": "user@example.com",
+  "rate_limit": 1000,
+  "plan": "basic",
+  "tokens": {
+    "access_token": "at_xxx...",
+    "refresh_token": "rt_xxx...",
+    "token_type": "Bearer",
+    "expires_in": 2592000,
+    "expires_at": "2025-12-12T15:00:00",
+    "plan": "basic",
+    "is_paid": true
+  },
+  "message": "User created successfully. Tokens generated."
+}
+```
+
+### 方式3: 登录获取Token
+
+如果已有账户，可以直接登录获取Token：
+
+```bash
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "user_id": "user@example.com",
+  "plan": "free"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "tokens": {
+    "access_token": "at_xxx...",
+    "refresh_token": "rt_xxx...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "expires_at": "2025-11-12T15:00:00",
+    "plan": "free",
+    "is_paid": false
+  },
+  "user_id": "user@example.com",
+  "plan": "free"
+}
+```
+
 ---
 
 ## 🔄 Token管理和续期
@@ -331,6 +383,384 @@ Content-Type: application/json
     "expires_at": "2025-12-12T15:00:00",
     "plan": "premium",
     "is_paid": true
+  }
+}
+```
+
+---
+
+## 📡 核心API端点响应格式
+
+### `/api/search` - 搜索新闻
+
+**请求示例**:
+```bash
+POST /api/search
+Authorization: Bearer <api_key>
+Content-Type: application/json
+
+{
+  "categories": ["tech"],
+  "max_results": 10,
+  "date_range": "today_and_yesterday"
+}
+```
+
+**成功响应**:
+```json
+{
+  "success": true,
+  "count": 10,
+  "news": [
+    {
+      "title": "新闻标题",
+      "url": "https://example.com/news",
+      "source": "来源名称",
+      "published_at": "2025-11-12T10:00:00",
+      "category": "tech",
+      "language": "zh",
+      "description": "新闻摘要",
+      "image": "https://example.com/image.jpg"
+    }
+  ],
+  "search_params": {
+    "keywords": null,
+    "categories": ["tech"],
+    "languages": "all",
+    "date_range": "today_and_yesterday",
+    "max_results": 10
+  }
+}
+```
+
+**错误响应**:
+```json
+{
+  "success": false,
+  "error": "错误信息",
+  "count": 0,
+  "news": []
+}
+```
+
+### `/api/download` - 下载新闻内容
+
+**请求示例**:
+```bash
+POST /api/download
+Authorization: Bearer <api_key>
+Content-Type: application/json
+
+{
+  "news_url": "https://example.com/news",
+  "include_images": true,
+  "include_banners": true
+}
+```
+
+**成功响应**:
+```json
+{
+  "url": "https://example.com/news",
+  "title": "新闻标题",
+  "content": "完整的新闻文本内容",
+  "html_body": "<div>完整的HTML内容</div>",
+  "images": [
+    {
+      "url": "https://example.com/image1.jpg",
+      "alt": "图片描述"
+    }
+  ],
+  "banners": [
+    {
+      "url": "https://example.com/banner.jpg",
+      "alt": "横幅描述"
+    }
+  ],
+  "videos": [
+    {
+      "url": "https://example.com/video.mp4",
+      "type": "video/mp4"
+    }
+  ],
+  "success": true
+}
+```
+
+**错误响应**:
+```json
+{
+  "url": "https://example.com/news",
+  "title": "",
+  "content": "",
+  "images": [],
+  "banners": [],
+  "success": false,
+  "error": "错误信息"
+}
+```
+
+### `/api/archive` - 完整归档
+
+**请求示例**:
+```bash
+POST /api/archive
+Authorization: Bearer <api_key>
+Content-Type: application/json
+
+{
+  "categories": ["tech"],
+  "max_results": 50,
+  "download_content": true,
+  "save_to_github": true,
+  "save_format": "md_with_html"
+}
+```
+
+**成功响应**:
+```json
+{
+  "success": true,
+  "search_results": {
+    "count": 50,
+    "news": [
+      {
+        "title": "新闻标题",
+        "url": "https://example.com/news",
+        "content": "完整内容",
+        "html_body": "<div>HTML内容</div>",
+        "images": [],
+        "banners": [],
+        "videos": [],
+        "category": "tech"
+      }
+    ]
+  },
+  "download_enabled": true,
+  "github_save_enabled": true,
+  "saved_files": [
+    "2025/11/12/tech.md",
+    "2025/11/12/finance.md"
+  ],
+  "summary": {
+    "total_news": 50,
+    "with_content": 45,
+    "with_html": 45,
+    "with_images": 30,
+    "with_videos": 5,
+    "categories": {
+      "tech": 30,
+      "finance": 20
+    }
+  }
+}
+```
+
+### `/api/auth/me` - 获取用户信息
+
+**请求示例**:
+```bash
+GET /api/auth/me
+Authorization: Bearer <access_token>
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "user_id": "user@example.com",
+  "rate_limit": 100,
+  "plan": "free",
+  "is_paid": false,
+  "rate_limit_info": {
+    "limit": 100,
+    "used": 5,
+    "remaining": 95,
+    "reset_at": 1762928400.0
+  }
+}
+```
+
+### `/api/auth/rate-limit` - 获取速率限制信息
+
+**请求示例**:
+```bash
+GET /api/auth/rate-limit
+Authorization: Bearer <access_token>
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "rate_limit_info": {
+    "limit": 100,
+    "used": 5,
+    "remaining": 95,
+    "reset_at": 1762928400.0
+  },
+  "plan": "free",
+  "is_paid": false
+}
+```
+
+### `/api/auth/users` - 列出所有用户（管理员）
+
+**请求示例**:
+```bash
+GET /api/auth/users
+Authorization: Bearer <admin_secret>
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "users": [],
+  "total": 0,
+  "message": "Stateless system: User information is not stored. Users are identified by their tokens."
+}
+```
+
+### `/api/auth/api-keys` - 列出所有API Keys（管理员）
+
+**请求示例**:
+```bash
+GET /api/auth/api-keys
+Authorization: Bearer <admin_secret>
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "api_keys": [],
+  "total": 0,
+  "message": "Stateless system: API keys are not stored. Keys are self-contained tokens."
+}
+```
+
+### `/` - API首页
+
+**请求示例**:
+```bash
+GET /
+Authorization: Bearer <api_key>  # 如果启用认证
+```
+
+**响应（已认证）**:
+```json
+{
+  "service": "Global News Aggregator API",
+  "version": "1.0.0",
+  "status": "online",
+  "config": {
+    "NEWSAPI_KEY": false,
+    "BING_API_KEY": false,
+    "NEWSDATA_KEY": false,
+    "SERPAPI_KEY": false,
+    "GOOGLE_SEARCH_API_KEY": false
+  },
+  "available_sources": [
+    "Hacker News API",
+    "Google News RSS",
+    "Product Hunt GraphQL"
+  ],
+  "endpoints": {
+    "/": "GET - API首页",
+    "/api/search": "POST/GET - 搜索全网新闻",
+    "/api/download": "POST/GET - 下载新闻完整内容",
+    "/api/health": "GET - 健康检查"
+  },
+  "usage": {
+    "search": {
+      "method": "POST/GET",
+      "url": "/api/search",
+      "body": {
+        "keywords": "搜索关键词（可选）",
+        "categories": ["科技", "商业", "体育"],
+        "languages": "zh/en/all（默认all）",
+        "date_range": "yesterday/last_7_days/last_30_days（默认last_7_days）",
+        "max_results": "50"
+      }
+    },
+    "download": {
+      "method": "POST/GET",
+      "url": "/api/download",
+      "body": {
+        "news_url": "新闻URL（必需）",
+        "include_images": "true/false（默认true）",
+        "include_banners": "true/false（默认true）"
+      }
+    }
+  },
+  "documentation": "https://github.com/clkhoo5211/upgraded-octo-fortnight"
+}
+```
+
+**响应（未认证，如果启用认证）**:
+```json
+{
+  "error": "Unauthorized",
+  "message": "Authentication required. Please provide a valid API Key or Access Token.",
+  "status_code": 401,
+  "service": "Global News Aggregator API",
+  "authentication": {
+    "required": true,
+    "methods": [
+      "Authorization: Bearer <api_key>",
+      "Authorization: Bearer <access_token>"
+    ],
+    "register_url": "/api/register",
+    "login_url": "/api/auth/login"
+  }
+}
+```
+
+### `/api/health` - 健康检查
+
+**请求示例**:
+```bash
+GET /api/health
+```
+
+**响应**:
+```json
+{
+  "status": "healthy",
+  "service": "Global News Aggregator",
+  "version": "1.0.0",
+  "service_status": "operational",
+  "endpoints": {
+    "/api/search": "POST/GET - 搜索全网新闻",
+    "/api/download": "POST/GET - 下载新闻完整内容",
+    "/api/health": "GET - 健康检查"
+  },
+  "free_features": {
+    "search": true,
+    "content_extraction": true,
+    "multi_language": true,
+    "quality_scoring": true
+  },
+  "premium_features": {
+    "newsapi_source": false,
+    "bing_news": false,
+    "serpapi_search": false,
+    "google_search": false,
+    "github_token": false
+  },
+  "news_sources": {
+    "free_sources": [
+      "Hacker News API",
+      "Google News RSS",
+      "Product Hunt GraphQL",
+      "Reddit JSON API"
+    ],
+    "premium_sources": []
+  },
+  "settings": {
+    "intelligent_filtering": true,
+    "production_mode": true
   }
 }
 ```
