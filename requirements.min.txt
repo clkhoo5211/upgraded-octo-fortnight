@@ -1,0 +1,6 @@
+# 简化版依赖 - Vercel兼容
+Flask>=3.0.0
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+feedparser>=6.0.12
+python-dateutil>=2.9.0
