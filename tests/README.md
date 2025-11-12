@@ -95,6 +95,7 @@ python3 tests/integration/test_all_plans.py
 ### API测试 (`tests/api/`)
 - `test_news_search.py` - 测试新闻搜索功能
 - `test_manual_archive.py` - 测试手动归档功能
+- `verify_archive.py` - 验证归档功能并检查GitHub仓库中的文件
 
 ### 集成测试 (`tests/integration/`)
 - `test_all_plans.py` - 测试所有用户计划（Free/Basic/Premium）

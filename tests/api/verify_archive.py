@@ -3,12 +3,21 @@
 归档功能验证脚本
 测试归档功能并验证GitHub仓库中的文件
 """
+import os
+import sys
 import requests
 import json
 from datetime import datetime
 import time
 
-BASE_URL = "https://upgraded-octo-fortnight.vercel.app"
+# 添加项目根目录到路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+sys.path.insert(0, project_root)
+
+from tests.config import API_BASE
+
+BASE_URL = API_BASE or "https://upgraded-octo-fortnight.vercel.app"
 REPO = "clkhoo5211/upgraded-octo-fortnight"
 
 def test_archive():

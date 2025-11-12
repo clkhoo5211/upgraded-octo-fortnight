@@ -8,10 +8,8 @@ import json
 import time
 from datetime import datetime
 
-# 添加项目根目录到路径
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-sys.path.insert(0, project_root)
+# 添加tests目录到路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tests'))
 
 from tests.config import API_BASE, REGISTRATION_SECRET, validate_test_config
 
