@@ -36,6 +36,10 @@
       "dest": "/api/optimize_keywords.py"
     },
     {
+      "src": "/api/manage_categories",
+      "dest": "/api/manage_categories.py"
+    },
+    {
       "src": "/",
       "dest": "/api/index.py"
     }

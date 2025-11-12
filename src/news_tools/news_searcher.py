@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import asyncio
 from .news_filter import NewsFilter
+from .category_manager import CategoryManager
 
 
 class NewsSearcher:
@@ -298,6 +299,11 @@ class NewsSearcher:
         self.google_search_key = google_search_key or os.getenv('GOOGLE_SEARCH_API_KEY')
         self.google_engine_id = google_engine_id or os.getenv('GOOGLE_SEARCH_ENGINE_ID')
         self.client = httpx.AsyncClient(timeout=30.0)
+        
+        # 分类管理器（加载自定义分类）
+        self.category_manager = CategoryManager()
+        # 更新CATEGORY_KEYWORDS以包含自定义分类
+        self.CATEGORY_KEYWORDS = self.category_manager.get_all_categories()
         
         # 智能过滤器
         self.enable_filter = enable_filter

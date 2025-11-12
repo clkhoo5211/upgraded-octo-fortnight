@@ -98,22 +98,23 @@ class GitHubArchiver:
     
     def _categorize_news(self, news_data: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """按分类组织新闻"""
-        categories = {
-            'politics': [],
-            'finance': [],
-            'crypto': [],
-            'blockchain': [],
-            'fengshui': [],
-            'tech': [],
-            'social': [],
-            'international': []
-        }
+        # 动态获取所有分类（包括自定义分类）
+        from .category_manager import CategoryManager
+        category_manager = CategoryManager()
+        all_categories = category_manager.get_all_categories()
+        
+        # 初始化分类字典
+        categories = {cat: [] for cat in all_categories.keys()}
+        # 添加默认的social分类作为兜底
+        if 'social' not in categories:
+            categories['social'] = []
         
         for news in news_data:
             category = news.get('category', 'social')
             if category in categories:
                 categories[category].append(news)
             else:
+                # 未知分类归入social
                 categories['social'].append(news)
         
         return categories
@@ -126,8 +127,8 @@ class GitHubArchiver:
         save_format: str
     ) -> str:
         """生成Markdown内容"""
-        # 分类名称映射
-        category_names = {
+        # 分类名称映射（默认映射）
+        default_category_names = {
             'politics': '政治',
             'finance': '财经',
             'crypto': '加密货币',
@@ -138,7 +139,8 @@ class GitHubArchiver:
             'international': '国际'
         }
         
-        category_name = category_names.get(category, category)
+        # 如果分类不在默认映射中，使用分类名称本身
+        category_name = default_category_names.get(category, category.replace('_', ' ').title())
         date_str = date_obj.strftime('%Y年%m月%d日')
         
         lines = [
