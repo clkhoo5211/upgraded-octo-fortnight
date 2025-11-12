@@ -2,16 +2,14 @@
 新闻内容下载API端点
 """
 import os
+import json
 import sys
 import asyncio
-from flask import Flask, jsonify, request
 
 # 添加src到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.news_tools import ContentDownloader
-
-app = Flask(__name__)
 
 # 全局下载器实例
 content_downloader = None
@@ -23,8 +21,7 @@ def get_content_downloader():
         content_downloader = ContentDownloader()
     return content_downloader
 
-@app.route('/api/download', methods=['POST', 'GET'])
-def download_content():
+def handler(request):
     """
     下载完整新闻内容
     
@@ -44,18 +41,33 @@ def download_content():
         }
     """
     try:
+        # 解析请求
+        method = request.get('httpMethod', 'GET')
+        
         # 获取请求参数
-        if request.method == 'POST':
-            data = request.get_json() or {}
+        if method == 'POST':
+            body = request.get('body', '{}')
+            if isinstance(body, str):
+                data = json.loads(body)
+            else:
+                data = body
         else:
-            data = request.args.to_dict()
+            # GET请求从queryStringParameters获取
+            data = request.get('queryStringParameters') or {}
         
         news_url = data.get('news_url')
         if not news_url:
-            return jsonify({
-                'success': False,
-                'error': 'news_url参数是必需的'
-            }), 400
+            return {
+                'statusCode': 400,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({
+                    'success': False,
+                    'error': 'news_url参数是必需的'
+                }, ensure_ascii=False)
+            }
         
         include_images = data.get('include_images', 'true').lower() == 'true'
         include_banners = data.get('include_banners', 'true').lower() == 'true'
@@ -66,33 +78,44 @@ def download_content():
         # 异步下载内容
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(
-            downloader.download_news_content(
-                news_url=news_url,
-                include_images=include_images,
-                include_banners=include_banners
+        try:
+            result = loop.run_until_complete(
+                downloader.download_news_content(
+                    news_url=news_url,
+                    include_images=include_images,
+                    include_banners=include_banners
+                )
             )
-        )
-        loop.close()
+        finally:
+            loop.close()
         
-        return jsonify(result)
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(result, ensure_ascii=False)
+        }
     
     except Exception as e:
-        return jsonify({
-            'url': data.get('news_url', ''),
-            'title': '',
-            'content': '',
-            'images': [],
-            'banners': [],
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# Vercel入口
-def handler(request):
-    """Vercel Serverless Function入口"""
-    with app.request_context(request.environ):
-        return app.full_dispatch_request()
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5002)
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"下载错误: {error_trace}")
+        
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'url': data.get('news_url', '') if 'data' in locals() else '',
+                'title': '',
+                'content': '',
+                'images': [],
+                'banners': [],
+                'success': False,
+                'error': str(e)
+            }, ensure_ascii=False)
+        }

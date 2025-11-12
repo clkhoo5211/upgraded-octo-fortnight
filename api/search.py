@@ -2,16 +2,14 @@
 全网新闻搜索API端点
 """
 import os
+import json
 import sys
 import asyncio
-from flask import Flask, jsonify, request
 
 # 添加src到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.news_tools import NewsSearcher
-
-app = Flask(__name__)
 
 # 全局搜索器实例
 news_searcher = None
@@ -28,13 +26,15 @@ def get_news_searcher():
             enable_filter=os.getenv('ENABLE_NEWS_FILTER', 'true').lower() == 'true'
         )
         # 加载自定义关键词
-        custom_keywords = news_searcher.load_custom_keywords()
-        if custom_keywords:
-            print(f"✓ 已加载自定义关键词配置: {len(custom_keywords)} 个分类")
+        try:
+            custom_keywords = news_searcher.load_custom_keywords()
+            if custom_keywords:
+                print(f"✓ 已加载自定义关键词配置: {len(custom_keywords)} 个分类")
+        except Exception as e:
+            print(f"警告: 加载自定义关键词失败: {e}")
     return news_searcher
 
-@app.route('/api/search', methods=['POST', 'GET'])
-def search_news():
+def handler(request):
     """
     搜索全网新闻
     
@@ -54,13 +54,22 @@ def search_news():
         }
     """
     try:
+        # 解析请求
+        method = request.get('httpMethod', 'GET')
+        
         # 获取请求参数
-        if request.method == 'POST':
-            data = request.get_json() or {}
+        if method == 'POST':
+            body = request.get('body', '{}')
+            if isinstance(body, str):
+                data = json.loads(body)
+            else:
+                data = body
         else:
-            data = request.args.to_dict()
+            # GET请求从queryStringParameters获取
+            query_params = request.get('queryStringParameters') or {}
+            data = query_params.copy()
             # 处理数组参数
-            if 'categories' in data:
+            if 'categories' in data and isinstance(data['categories'], str):
                 data['categories'] = data['categories'].split(',')
         
         keywords = data.get('keywords')
@@ -75,18 +84,20 @@ def search_news():
         # 异步搜索新闻
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        news_list = loop.run_until_complete(
-            searcher.search_news(
-                keywords=keywords,
-                categories=categories,
-                languages=languages,
-                date_range=date_range,
-                max_results=max_results
+        try:
+            news_list = loop.run_until_complete(
+                searcher.search_news(
+                    keywords=keywords,
+                    categories=categories,
+                    languages=languages,
+                    date_range=date_range,
+                    max_results=max_results
+                )
             )
-        )
-        loop.close()
+        finally:
+            loop.close()
         
-        return jsonify({
+        response_data = {
             'success': True,
             'count': len(news_list),
             'news': news_list,
@@ -97,21 +108,32 @@ def search_news():
                 'date_range': date_range,
                 'max_results': max_results
             }
-        })
+        }
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(response_data, ensure_ascii=False)
+        }
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'count': 0,
-            'news': []
-        }), 500
-
-# Vercel入口
-def handler(request):
-    """Vercel Serverless Function入口"""
-    with app.request_context(request.environ):
-        return app.full_dispatch_request()
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"搜索错误: {error_trace}")
+        
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'success': False,
+                'error': str(e),
+                'count': 0,
+                'news': []
+            }, ensure_ascii=False)
+        }
