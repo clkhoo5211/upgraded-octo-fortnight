@@ -346,12 +346,22 @@ class handler(BaseHTTPRequestHandler):
             self._send_error(401, 'Invalid token')
             return
         
-        rate_limit_info = rate_limiter.get_rate_limit_info(user_info['user_id'])
+        # 从Token中获取速率限制
+        rate_limit = user_info.get('rate_limit', 1000)
+        user_id = user_info['user_id']
+        
+        # 获取当前使用情况（仅当前请求周期）
+        rate_limit_info = rate_limiter.get_rate_limit_info(user_id)
+        
+        # 使用Token中的rate_limit
+        rate_limit_info['limit'] = rate_limit
         
         self._send_json(200, {
             'success': True,
-            'user_id': user_info['user_id'],
-            'rate_limit': user_info.get('rate_limit', 1000),
+            'user_id': user_id,
+            'rate_limit': rate_limit,
+            'plan': user_info.get('plan', 'free'),
+            'is_paid': user_info.get('is_paid', False),
             'rate_limit_info': rate_limit_info
         })
     
