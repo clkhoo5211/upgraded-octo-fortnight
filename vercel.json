@@ -54,6 +54,10 @@
       "dest": "/api/auth.py"
     },
     {
+      "src": "/api/register",
+      "dest": "/api/register.py"
+    },
+    {
       "src": "/",
       "dest": "/api/index.py"
     }
