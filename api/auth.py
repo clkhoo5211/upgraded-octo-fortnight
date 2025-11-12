@@ -166,29 +166,25 @@ class handler(BaseHTTPRequestHandler):
             self._send_error(500, str(e))
     
     def _handle_login(self, data: dict):
-        """处理登录请求"""
+        """处理登录请求（无状态系统）"""
         user_id = data.get('user_id')
+        plan = data.get('plan', 'free')  # 允许指定计划
+        
         if not user_id:
             self._send_error(400, 'user_id is required')
             return
         
-        # 检查用户是否存在
-        user_info = token_manager.get_user_info(user_id)
-        if not user_info:
-            self._send_error(404, 'User not found')
-            return
-        
-        if not user_info.get('enabled', True):
-            self._send_error(403, 'User is disabled')
-            return
-        
-        # 生成Token
-        tokens = token_manager.generate_access_token(user_id)
+        # 在无状态系统中，无法验证用户是否存在
+        # 直接生成Token（默认free计划）
+        # 如果需要特定计划，应该通过注册端点
+        is_paid = plan in ['basic', 'premium']
+        tokens = token_manager.generate_access_token(user_id, plan=plan, is_paid=is_paid)
         
         self._send_json(200, {
             'success': True,
             'tokens': tokens,
-            'user_id': user_id
+            'user_id': user_id,
+            'plan': plan
         })
     
     def _handle_refresh(self, data: dict):
