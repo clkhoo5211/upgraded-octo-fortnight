@@ -33,112 +33,112 @@ jobs:
           ENABLE_NEWS_FILTER: ${{ secrets.ENABLE_NEWS_FILTER || 'true' }}
           GITHUB_REPO: ${{ github.repository }}
         run: |
-          python3 << 'EOF'
-import asyncio
-import os
-import sys
-from datetime import datetime, timedelta
-
-# 添加src到路径
-sys.path.insert(0, 'src')
-
-from news_tools import NewsSearcher, ContentDownloader
-from news_tools.github_archiver import GitHubArchiver
-
-async def main():
-    print("=" * 70)
-    print("开始归档前一日新闻")
-    print("=" * 70)
-    
-    # 获取前一日日期
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-    print(f"归档日期: {yesterday}")
-    
-    # 搜索前一日新闻（仅昨日和今日的新闻）
-    print("\n正在搜索前一日新闻...")
-    searcher = NewsSearcher(
-        newsapi_key=os.getenv('NEWSAPI_KEY'),
-        newsdata_key=os.getenv('NEWSDATA_KEY'),
-        bing_api_key=os.getenv('BING_API_KEY'),
-        serpapi_key=os.getenv('SERPAPI_KEY'),
-        enable_filter=os.getenv('ENABLE_NEWS_FILTER', 'true').lower() == 'true'
-    )
-    
-    news_list = await searcher.search_news(
-        keywords=None,  # 搜索所有新闻
-        categories=None,  # 所有分类
-        languages='all',
-        date_range='yesterday',  # 仅前一日
-        max_results=200
-    )
-    
-    await searcher.client.aclose()
-    
-    print(f"找到 {len(news_list)} 条新闻")
-    
-    if not news_list:
-        print("没有找到新闻，退出")
-        return
-    
-    # 下载完整内容
-    print("\n正在下载完整内容...")
-    downloader = ContentDownloader()
-    
-    urls = [news.get('url') for news in news_list if news.get('url')]
-    downloaded_contents = await downloader.download_multiple(
-        urls, 
-        include_images=True, 
-        include_banners=True
-    )
-    
-    await downloader.close()
-    
-    # 合并内容
-    url_to_content = {item['url']: item for item in downloaded_contents}
-    for news in news_list:
-        url = news.get('url')
-        if url and url in url_to_content:
-            content_data = url_to_content[url]
-            news['content'] = content_data.get('content', news.get('content', ''))
-            news['html_body'] = content_data.get('html_body', '')
-            news['images'] = content_data.get('images', [])
-            news['banners'] = content_data.get('banners', [])
-            news['videos'] = content_data.get('videos', [])
-    
-    print(f"已下载 {sum(1 for n in news_list if n.get('content'))} 条新闻的完整内容")
-    
-    # 归档到GitHub
-    print("\n正在归档到GitHub...")
-    github_token = os.getenv('GITHUB_TOKEN')
-    repo_name = os.getenv('GITHUB_REPO', 'clkhoo5211/upgraded-octo-fortnight')
-    
-    archiver = GitHubArchiver(github_token, repo_name)
-    result = archiver.classify_and_save_news(
-        news_list,
-        save_format='md_with_html',
-        target_date=yesterday
-    )
-    
-    if result['success']:
-        print("\n" + "=" * 70)
-        print("✓ 归档成功!")
-        print("=" * 70)
-        print(f"归档日期: {yesterday}")
-        print(f"总新闻数: {result['total_news']}")
-        print(f"保存文件数: {len(result['saved_files'])}")
-        print("\n保存的文件:")
-        for file in result['saved_files']:
-            print(f"  - {file}")
-    else:
-        print("\n" + "=" * 70)
-        print("✗ 归档失败!")
-        print("=" * 70)
-        print("错误:")
-        for error in result.get('errors', []):
-            print(f"  - {error}")
-        sys.exit(1)
-
-if __name__ == '__main__':
-    asyncio.run(main())
-EOF
+          python3 << 'PYTHON_SCRIPT'
+          import asyncio
+          import os
+          import sys
+          from datetime import datetime, timedelta
+          
+          # 添加src到路径
+          sys.path.insert(0, 'src')
+          
+          from news_tools import NewsSearcher, ContentDownloader
+          from news_tools.github_archiver import GitHubArchiver
+          
+          async def main():
+              print("=" * 70)
+              print("开始归档前一日新闻")
+              print("=" * 70)
+              
+              # 获取前一日日期
+              yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+              print(f"归档日期: {yesterday}")
+              
+              # 搜索前一日新闻（仅昨日和今日的新闻）
+              print("\n正在搜索前一日新闻...")
+              searcher = NewsSearcher(
+                  newsapi_key=os.getenv('NEWSAPI_KEY'),
+                  newsdata_key=os.getenv('NEWSDATA_KEY'),
+                  bing_api_key=os.getenv('BING_API_KEY'),
+                  serpapi_key=os.getenv('SERPAPI_KEY'),
+                  enable_filter=os.getenv('ENABLE_NEWS_FILTER', 'true').lower() == 'true'
+              )
+              
+              news_list = await searcher.search_news(
+                  keywords=None,  # 搜索所有新闻
+                  categories=None,  # 所有分类
+                  languages='all',
+                  date_range='yesterday',  # 仅前一日
+                  max_results=200
+              )
+              
+              await searcher.client.aclose()
+              
+              print(f"找到 {len(news_list)} 条新闻")
+              
+              if not news_list:
+                  print("没有找到新闻，退出")
+                  return
+              
+              # 下载完整内容
+              print("\n正在下载完整内容...")
+              downloader = ContentDownloader()
+              
+              urls = [news.get('url') for news in news_list if news.get('url')]
+              downloaded_contents = await downloader.download_multiple(
+                  urls, 
+                  include_images=True, 
+                  include_banners=True
+              )
+              
+              await downloader.close()
+              
+              # 合并内容
+              url_to_content = {item['url']: item for item in downloaded_contents}
+              for news in news_list:
+                  url = news.get('url')
+                  if url and url in url_to_content:
+                      content_data = url_to_content[url]
+                      news['content'] = content_data.get('content', news.get('content', ''))
+                      news['html_body'] = content_data.get('html_body', '')
+                      news['images'] = content_data.get('images', [])
+                      news['banners'] = content_data.get('banners', [])
+                      news['videos'] = content_data.get('videos', [])
+              
+              print(f"已下载 {sum(1 for n in news_list if n.get('content'))} 条新闻的完整内容")
+              
+              # 归档到GitHub
+              print("\n正在归档到GitHub...")
+              github_token = os.getenv('GITHUB_TOKEN')
+              repo_name = os.getenv('GITHUB_REPO', 'clkhoo5211/upgraded-octo-fortnight')
+              
+              archiver = GitHubArchiver(github_token, repo_name)
+              result = archiver.classify_and_save_news(
+                  news_list,
+                  save_format='md_with_html',
+                  target_date=yesterday
+              )
+              
+              if result['success']:
+                  print("\n" + "=" * 70)
+                  print("✓ 归档成功!")
+                  print("=" * 70)
+                  print(f"归档日期: {yesterday}")
+                  print(f"总新闻数: {result['total_news']}")
+                  print(f"保存文件数: {len(result['saved_files'])}")
+                  print("\n保存的文件:")
+                  for file in result['saved_files']:
+                      print(f"  - {file}")
+              else:
+                  print("\n" + "=" * 70)
+                  print("✗ 归档失败!")
+                  print("=" * 70)
+                  print("错误:")
+                  for error in result.get('errors', []):
+                      print(f"  - {error}")
+                  sys.exit(1)
+          
+          if __name__ == '__main__':
+              asyncio.run(main())
+          PYTHON_SCRIPT
 
