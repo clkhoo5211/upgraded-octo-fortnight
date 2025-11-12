@@ -135,13 +135,32 @@ class handler(BaseHTTPRequestHandler):
                 finally:
                     loop.close()
             
-            # 步骤3: 保存到GitHub
-            archiver = get_github_archiver()
-            save_result = archiver.classify_and_save_news(
-                news_list,
-                save_format=save_format,
-                target_date=yesterday  # 保存到前一日目录
-            )
+            # 步骤3: 保存到GitHub（如果配置了GITHUB_TOKEN）
+            github_token = os.getenv('GITHUB_TOKEN')
+            if github_token:
+                try:
+                    archiver = get_github_archiver()
+                    save_result = archiver.classify_and_save_news(
+                        news_list,
+                        save_format=save_format,
+                        target_date=yesterday  # 保存到前一日目录
+                    )
+                except Exception as e:
+                    # 如果GitHub归档失败，仍然返回搜索结果
+                    save_result = {
+                        'success': False,
+                        'saved_files': [],
+                        'errors': [{'error': f'GitHub归档失败: {str(e)}'}],
+                        'total_news': len(news_list)
+                    }
+            else:
+                # 如果没有配置GITHUB_TOKEN，跳过归档
+                save_result = {
+                    'success': False,
+                    'saved_files': [],
+                    'errors': [{'error': 'GITHUB_TOKEN未设置，跳过GitHub归档'}],
+                    'total_news': len(news_list)
+                }
             
             # 返回结果
             response_data = {
