@@ -1,0 +1,90 @@
+name: Use News API in GitHub Actions
+
+on:
+  schedule:
+    # 每天UTC时间1点执行（北京时间9点）
+    - cron: '0 1 * * *'
+  workflow_dispatch: # 允许手动触发
+    inputs:
+      categories:
+        description: 'Categories (comma-separated, e.g., tech,finance)'
+        required: false
+        default: 'tech'
+
+jobs:
+  fetch-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Fetch news from API
+        id: fetch_news
+        run: |
+          # 设置API地址
+          API_BASE="https://upgraded-octo-fortnight.vercel.app"
+          
+          # 获取分类（从输入或使用默认值）
+          CATEGORIES="${INPUT_CATEGORIES:-tech}"
+          IFS=',' read -ra CAT_ARRAY <<< "$CATEGORIES"
+          
+          # 构建分类数组JSON格式
+          CAT_JSON="["
+          for i in "${!CAT_ARRAY[@]}"; do
+            if [ $i -gt 0 ]; then
+              CAT_JSON+=","
+            fi
+            CAT_JSON+="\"${CAT_ARRAY[$i]}\""
+          done
+          CAT_JSON+="]"
+          
+          # 调用API搜索新闻
+          echo "正在搜索分类: $CATEGORIES"
+          curl -X POST "${API_BASE}/api/search" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"categories\": ${CAT_JSON},
+              \"date_range\": \"today_and_yesterday\",
+              \"max_results\": 20
+            }" > news_results.json
+          
+          # 检查结果
+          if [ -f news_results.json ]; then
+            COUNT=$(jq -r '.count' news_results.json)
+            echo "找到 $COUNT 条新闻"
+            echo "count=$COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "获取新闻失败"
+            exit 1
+          fi
+        env:
+          INPUT_CATEGORIES: ${{ github.event.inputs.categories }}
+      
+      - name: Process news data
+        run: |
+          # 提取新闻标题
+          echo "## 📰 今日新闻摘要" > NEWS_SUMMARY.md
+          echo "" >> NEWS_SUMMARY.md
+          
+          jq -r '.news[] | "- **\(.title)**\n  - 来源: \(.source)\n  - 链接: \(.url)\n  - 时间: \(.published_at)\n"' news_results.json >> NEWS_SUMMARY.md
+          
+          # 显示摘要
+          cat NEWS_SUMMARY.md
+      
+      - name: Save news to repository
+        run: |
+          # 创建日期目录
+          DATE_DIR=$(date +%Y/%m/%d)
+          mkdir -p "news_archive/$DATE_DIR"
+          
+          # 保存JSON结果
+          cp news_results.json "news_archive/$DATE_DIR/news.json"
+          cp NEWS_SUMMARY.md "news_archive/$DATE_DIR/SUMMARY.md"
+          
+          # 提交到仓库
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add news_archive/
+          git commit -m "Update news archive for $(date +%Y-%m-%d)" || exit 0
+          git push
+
