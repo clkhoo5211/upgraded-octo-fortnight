@@ -74,40 +74,14 @@ class handler(BaseHTTPRequestHandler):
                 self._send_error(400, f'Invalid plan. Available plans: {list(PLAN_RATE_LIMITS.keys())}')
                 return
             
-            # 检查用户是否已存在
-            user_id = email
-            existing_user = token_manager.get_user_info(user_id)
-            
-            if existing_user:
-                # 用户已存在，返回现有用户信息和登录Token
-                tokens = token_manager.generate_access_token(user_id)
-                self._send_json(200, {
-                    'success': True,
-                    'message': 'User already exists. Please login.',
-                    'user_id': user_id,
-                    'plan': existing_user.get('plan', 'free'),
-                    'rate_limit': existing_user.get('rate_limit', 100),
-                    'tokens': tokens,
-                    'next_step': 'create_api_key'
-                })
-                return
-            
             # 获取速率限制
             rate_limit = PLAN_RATE_LIMITS.get(plan, 100)
             
-            # 创建用户
-            token_manager.tokens_data['users'][user_id] = {
-                'created_at': datetime.now().isoformat(),
-                'api_keys': [],
-                'rate_limit': rate_limit,
-                'enabled': True,
-                'plan': plan,
-                'name': name,
-                'email': email
-            }
-            token_manager._save_tokens()
+            # 在无状态系统中，不检查用户是否已存在
+            # 每次注册都生成新Token
+            user_id = email
             
-            # 设置速率限制
+            # 设置速率限制（仅用于当前请求周期）
             rate_limiter.set_rate_limit(user_id, rate_limit)
             
             # 自动登录并返回Token（根据计划设置）

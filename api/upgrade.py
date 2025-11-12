@@ -76,14 +76,10 @@ class handler(BaseHTTPRequestHandler):
                 self._send_error(400, f'Already on {current_plan} plan')
                 return
             
-            # 更新用户计划
-            if user_id in token_manager.tokens_data['users']:
-                token_manager.tokens_data['users'][user_id]['plan'] = new_plan
-                new_rate_limit = PLAN_RATE_LIMITS[new_plan]
-                token_manager.tokens_data['users'][user_id]['rate_limit'] = new_rate_limit
-                token_manager._save_tokens()
-                
-                rate_limiter.set_rate_limit(user_id, new_rate_limit)
+            # 在无状态系统中，用户计划信息在Token中
+            # 只需要生成新的Token即可
+            new_rate_limit = PLAN_RATE_LIMITS[new_plan]
+            rate_limiter.set_rate_limit(user_id, new_rate_limit)
             
             # 生成新的付费Token
             is_paid = new_plan in ['basic', 'premium']

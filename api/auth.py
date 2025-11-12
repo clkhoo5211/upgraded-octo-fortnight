@@ -307,20 +307,16 @@ class handler(BaseHTTPRequestHandler):
         """处理创建用户请求（管理员）"""
         user_id = data.get('user_id')
         rate_limit = data.get('rate_limit', 1000)
+        plan = data.get('plan', 'free')
         
         if not user_id:
             self._send_error(400, 'user_id is required')
             return
         
-        # 创建用户（如果不存在）
-        if user_id not in token_manager.tokens_data['users']:
-            token_manager.tokens_data['users'][user_id] = {
-                'created_at': token_manager.tokens_data.get('users', {}).get(user_id, {}).get('created_at') or __import__('datetime').datetime.now().isoformat(),
-                'api_keys': [],
-                'rate_limit': rate_limit,
-                'enabled': True
-            }
-            token_manager._save_tokens()
+        # 在无状态系统中，用户信息不存储
+        # 直接生成Token返回给用户
+        is_paid = plan in ['basic', 'premium']
+        tokens = token_manager.generate_access_token(user_id, plan=plan, is_paid=is_paid)
         
         rate_limiter.set_rate_limit(user_id, rate_limit)
         
@@ -328,7 +324,9 @@ class handler(BaseHTTPRequestHandler):
             'success': True,
             'user_id': user_id,
             'rate_limit': rate_limit,
-            'message': 'User created successfully'
+            'plan': plan,
+            'tokens': tokens,
+            'message': 'User created successfully. Tokens generated.'
         })
     
     def _handle_get_me(self):
@@ -386,31 +384,25 @@ class handler(BaseHTTPRequestHandler):
         })
     
     def _handle_list_users(self):
-        """列出所有用户"""
-        users = []
-        for user_id, user_info in token_manager.tokens_data['users'].items():
-            users.append({
-                'user_id': user_id,
-                'created_at': user_info.get('created_at'),
-                'rate_limit': user_info.get('rate_limit', 1000),
-                'enabled': user_info.get('enabled', True),
-                'api_key_count': len(user_info.get('api_keys', []))
-            })
-        
+        """列出所有用户（无状态系统，无法列出）"""
+        # 在无状态系统中，无法列出用户
+        # 因为用户信息不存储
         self._send_json(200, {
             'success': True,
-            'users': users,
-            'total': len(users)
+            'users': [],
+            'total': 0,
+            'message': 'Stateless system: User information is not stored. Users are identified by their tokens.'
         })
     
     def _handle_list_api_keys(self):
-        """列出所有API Keys"""
-        api_keys = token_manager.list_api_keys()
-        
+        """列出所有API Keys（无状态系统，无法列出）"""
+        # 在无状态系统中，无法列出API Keys
+        # 因为Token不存储
         self._send_json(200, {
             'success': True,
-            'api_keys': api_keys,
-            'total': len(api_keys)
+            'api_keys': [],
+            'total': 0,
+            'message': 'Stateless system: API keys are not stored. Keys are self-contained tokens.'
         })
     
     def _handle_revoke_api_key(self, data: dict):

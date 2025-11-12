@@ -1108,7 +1108,7 @@ curl -X POST https://upgraded-octo-fortnight.vercel.app/api/register \
    ```bash
    curl -X POST https://upgraded-octo-fortnight.vercel.app/api/auth/refresh \
      -d '{"refresh_token": "rt_xxx..."}'
-   ```
+```
 
 ### 在其他仓库中使用
 

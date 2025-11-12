@@ -1,43 +1,28 @@
 """
-Token管理模块 - 基于签名的无状态Token系统
-使用HMAC签名，无需存储Token，完全无状态
+Token管理模块 - 完全无状态Token系统
+使用HMAC签名，Token包含所有信息，无需任何存储
 """
 import os
 import json
-import secrets
-import hashlib
 import hmac
+import hashlib
 import base64
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List
-from urllib.parse import quote, unquote
+from typing import Optional, Dict
 
-# 获取签名密钥（从环境变量）
 def _get_secret_key() -> str:
-    """获取签名密钥"""
+    """获取签名密钥（使用ADMIN_SECRET）"""
     return os.getenv('ADMIN_SECRET', 'change-me-in-production')
 
-# 仅存储用户信息（用于速率限制和计划管理）
-# Token本身不需要存储，因为包含在签名中
-_global_users_data = None
-
-def _get_global_users_data():
-    """获取全局用户数据（仅用于速率限制）"""
-    global _global_users_data
-    if _global_users_data is None:
-        _global_users_data = {}
-    return _global_users_data
-
 class TokenManager:
-    """Token管理器 - 基于签名的无状态实现"""
+    """Token管理器 - 完全无状态实现，无需存储"""
     
     def __init__(self):
         """初始化Token管理器"""
         self.secret_key = _get_secret_key()
-        self.users_data = _get_global_users_data()
     
     def _sign(self, data: str) -> str:
-        """生成HMAC签名"""
+        """生成HMAC-SHA256签名"""
         return hmac.new(
             self.secret_key.encode('utf-8'),
             data.encode('utf-8'),
@@ -80,7 +65,7 @@ class TokenManager:
     
     def generate_api_key(self, user_id: str, name: str = "default", plan: str = "free", rate_limit: int = 100) -> str:
         """
-        生成API Key（签名Token，无需存储）
+        生成API Key（签名Token，包含所有信息）
         
         Args:
             user_id: 用户ID
@@ -91,28 +76,17 @@ class TokenManager:
         Returns:
             API Key字符串
         """
-        # API Key永不过期，但包含创建时间用于追踪
         payload = {
             'type': 'api_key',
             'user_id': user_id,
             'name': name,
             'plan': plan,
             'rate_limit': rate_limit,
+            'is_paid': plan in ['basic', 'premium'],
             'created_at': datetime.now().isoformat()
         }
         
-        # 编码Token
         token = self._encode_token(payload)
-        
-        # 存储用户信息（仅用于速率限制，不存储Token本身）
-        if user_id not in self.users_data:
-            self.users_data[user_id] = {
-                'plan': plan,
-                'rate_limit': rate_limit,
-                'enabled': True,
-                'created_at': datetime.now().isoformat()
-            }
-        
         return f"ak_{token}"
     
     def generate_access_token(
@@ -123,7 +97,7 @@ class TokenManager:
         is_paid: bool = False
     ) -> Dict[str, str]:
         """
-        生成Access Token和Refresh Token（签名Token，无需存储）
+        生成Access Token和Refresh Token（签名Token，包含所有信息）
         
         Args:
             user_id: 用户ID
@@ -174,15 +148,6 @@ class TokenManager:
         access_token = f"at_{self._encode_token(access_payload)}"
         refresh_token = f"rt_{self._encode_token(refresh_payload)}"
         
-        # 存储用户信息（仅用于速率限制）
-        if user_id not in self.users_data:
-            self.users_data[user_id] = {
-                'plan': plan,
-                'rate_limit': rate_limit,
-                'enabled': True,
-                'created_at': datetime.now().isoformat()
-            }
-        
         return {
             'access_token': access_token,
             'refresh_token': refresh_token,
@@ -212,17 +177,11 @@ class TokenManager:
         if not payload or payload.get('type') != 'api_key':
             return None
         
-        # 检查用户是否被禁用（如果用户数据存在）
-        user_id = payload['user_id']
-        user_info = self.users_data.get(user_id)
-        if user_info and not user_info.get('enabled', True):
-            return None
-        
         return {
-            'user_id': user_id,
+            'user_id': payload['user_id'],
             'rate_limit': payload.get('rate_limit', 1000),
             'plan': payload.get('plan', 'free'),
-            'is_paid': payload.get('plan') in ['basic', 'premium'],
+            'is_paid': payload.get('is_paid', False),
             'api_key_name': payload.get('name', 'default')
         }
     
@@ -258,14 +217,8 @@ class TokenManager:
                     'is_paid': payload.get('is_paid', False)
                 }
         
-        # 检查用户是否被禁用
-        user_id = payload['user_id']
-        user_info = self.users_data.get(user_id)
-        if user_info and not user_info.get('enabled', True):
-            return None
-        
         return {
-            'user_id': user_id,
+            'user_id': payload['user_id'],
             'rate_limit': payload.get('rate_limit', 1000),
             'plan': payload.get('plan', 'free'),
             'is_paid': payload.get('is_paid', False),
@@ -299,13 +252,8 @@ class TokenManager:
             if datetime.now() > expires_at:
                 return None
         
-        # 检查用户是否被禁用
-        user_id = payload['user_id']
-        user_info = self.users_data.get(user_id)
-        if user_info and not user_info.get('enabled', True):
-            return None
-        
         # 生成新的Access Token
+        user_id = payload['user_id']
         plan = payload.get('plan', 'free')
         is_paid = payload.get('is_paid', False)
         return self.generate_access_token(user_id, plan=plan, is_paid=is_paid)
@@ -340,11 +288,6 @@ class TokenManager:
         user_id = payload['user_id']
         plan = payload.get('plan', 'free')
         is_paid = payload.get('is_paid', False)
-        
-        # 检查用户是否仍然有效
-        user_info = self.users_data.get(user_id)
-        if user_info and not user_info.get('enabled', True):
-            return None
         
         # 生成新Token
         return self.generate_access_token(user_id, new_expires_in or None, plan, is_paid)
@@ -407,54 +350,36 @@ class TokenManager:
             }
     
     def get_user_info(self, user_id: str) -> Optional[Dict]:
-        """获取用户信息（仅用于速率限制）"""
-        return self.users_data.get(user_id)
+        """获取用户信息（无状态系统，无法获取，返回None）"""
+        # 在无状态系统中，无法通过user_id获取信息
+        # 用户信息都在Token中
+        return None
     
     def update_user_rate_limit(self, user_id: str, rate_limit: int):
-        """更新用户速率限制"""
-        if user_id not in self.users_data:
-            self.users_data[user_id] = {'rate_limit': rate_limit, 'enabled': True}
-        else:
-            self.users_data[user_id]['rate_limit'] = rate_limit
+        """更新用户速率限制（无状态系统，无法更新）"""
+        # 速率限制信息在Token中，需要重新生成Token
+        pass
     
     def disable_user(self, user_id: str):
-        """禁用用户"""
-        if user_id in self.users_data:
-            self.users_data[user_id]['enabled'] = False
+        """禁用用户（无状态系统，无法禁用）"""
+        # 在无状态系统中，无法禁用用户
+        # 如果需要禁用功能，需要维护一个黑名单（但用户不想存储）
+        pass
     
     def enable_user(self, user_id: str):
-        """启用用户"""
-        if user_id in self.users_data:
-            self.users_data[user_id]['enabled'] = True
+        """启用用户（无状态系统，无法启用）"""
+        pass
     
     def list_api_keys(self, user_id: Optional[str] = None) -> List[Dict]:
-        """列出API Keys（无法列出，因为Token不存储）"""
-        # 由于Token不存储，无法列出
-        # 如果需要此功能，可以维护一个API Key元数据列表
+        """列出API Keys（无状态系统，无法列出）"""
         return []
     
     def revoke_api_key(self, api_key: str) -> bool:
-        """撤销API Key（通过禁用用户实现）"""
-        payload = None
-        if api_key.startswith('ak_'):
-            token = api_key[3:]
-            payload = self._decode_token(token)
-        
-        if payload and payload.get('type') == 'api_key':
-            user_id = payload['user_id']
-            self.disable_user(user_id)
-            return True
+        """撤销API Key（无状态系统，无法撤销）"""
+        # 在无状态系统中，无法撤销Token
+        # Token一旦签发就有效，直到过期
         return False
     
     def revoke_token(self, access_token: str) -> bool:
-        """撤销Token（通过禁用用户实现）"""
-        payload = None
-        if access_token.startswith('at_'):
-            token = access_token[3:]
-            payload = self._decode_token(token)
-        
-        if payload and payload.get('type') == 'access_token':
-            user_id = payload['user_id']
-            self.disable_user(user_id)
-            return True
+        """撤销Token（无状态系统，无法撤销）"""
         return False
