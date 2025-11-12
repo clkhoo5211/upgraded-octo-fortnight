@@ -807,14 +807,20 @@ class NewsSearcher:
         """计算起始日期"""
         today = datetime.now()
         
-        if date_range == 'yesterday':
+        if date_range == 'today_and_yesterday':
+            # 当日和前一日的新闻（从前一日开始）
+            date_from = today - timedelta(days=1)
+        elif date_range == 'today':
+            date_from = today
+        elif date_range == 'yesterday':
             date_from = today - timedelta(days=1)
         elif date_range == 'last_7_days':
             date_from = today - timedelta(days=7)
         elif date_range == 'last_30_days':
             date_from = today - timedelta(days=30)
         else:
-            date_from = today - timedelta(days=7)
+            # 默认：当日和前一日的新闻
+            date_from = today - timedelta(days=1)
         
         return date_from.strftime('%Y-%m-%d')
     
