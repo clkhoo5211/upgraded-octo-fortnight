@@ -770,6 +770,11 @@
 **/.env*
 !**/.env.example
 !**/.env.template
+!**/.env.test.example
+# 测试配置文件（包含敏感信息）
+tests/config/.env.test
+**/test*.py
+!tests/**/*.py
 **/*.pem
 **/*.key
 **/*.p12

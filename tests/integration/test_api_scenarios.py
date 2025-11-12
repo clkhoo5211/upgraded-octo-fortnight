@@ -5,14 +5,26 @@ API测试脚本 - 测试三种场景
 2. 普通用户免费配套
 3. 其他各配套测试（Basic和Premium）
 """
+import os
+import sys
 import requests
 import json
 import time
 from datetime import datetime
 
-API_BASE = "https://upgraded-octo-fortnight.vercel.app"
-ADMIN_SECRET = "0x6c103441fed1fa4a908b76223de0e697097eed77"
-REGISTRATION_SECRET = "0x6c103441fed1fa4a908b76223de0e697097eed77"
+# 添加项目根目录到路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+sys.path.insert(0, project_root)
+
+from tests.config import API_BASE, ADMIN_SECRET, REGISTRATION_SECRET, validate_test_config
+
+# 验证配置
+try:
+    validate_test_config()
+except ValueError as e:
+    print(f"❌ 配置错误: {e}")
+    sys.exit(1)
 
 def print_section(title):
     """打印章节标题"""
