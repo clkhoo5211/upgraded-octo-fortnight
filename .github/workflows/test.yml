@@ -57,7 +57,7 @@ jobs:
       - name: 测试API端点语法
         run: |
           echo "测试API端点语法..."
-          python -m py_compile api/index.py api/health.py api/search.py api/download.py api/test.py
+          python -m py_compile api/index.py api/health.py api/search.py api/download.py api/archive.py api/auth.py api/register.py api/upgrade.py
           echo "✅ 所有API端点语法正确"
       
       - name: 运行功能测试（如果存在）

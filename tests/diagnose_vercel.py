@@ -16,7 +16,10 @@ def check_file_structure():
         'api/health.py',
         'api/search.py',
         'api/download.py',
-        'api/test.py',
+        'api/archive.py',
+        'api/auth.py',
+        'api/register.py',
+        'api/upgrade.py',
         'vercel.json',
         'requirements.txt'
     ]
@@ -35,7 +38,7 @@ def check_handler_format():
     print("2. 检查handler函数格式")
     print("=" * 70)
     
-    api_files = ['api/index.py', 'api/health.py', 'api/search.py', 'api/download.py', 'api/test.py']
+    api_files = ['api/index.py', 'api/health.py', 'api/search.py', 'api/download.py', 'api/archive.py', 'api/auth.py', 'api/register.py', 'api/upgrade.py']
     
     for file in api_files:
         if not os.path.exists(file):

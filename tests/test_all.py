@@ -53,7 +53,10 @@ def test_api_syntax():
         'api/health.py',
         'api/search.py',
         'api/download.py',
-        'api/test.py'
+        'api/archive.py',
+        'api/auth.py',
+        'api/register.py',
+        'api/upgrade.py'
     ]
     
     all_ok = True
