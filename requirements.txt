@@ -1,8 +1,17 @@
+# Web框架
+Flask>=3.0.0
+
+# 数据处理
 beautifulsoup4>=4.14.2
-fastmcp>=2.13.0.2
 feedparser>=6.0.12
-httpx>=0.28.1
 lxml>=6.0.2
+
+# HTTP请求
+httpx>=0.28.1
+
+# 其他工具
 pygithub>=2.8.1
 python-dateutil>=2.9.0.post0
-Flask>=3.0.0
+
+# MCP相关
+fastmcp>=2.13.0.2

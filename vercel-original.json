@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "name": "global-news-mcp",
+  "builds": [
+    {
+      "src": "api/**/*.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.py"
+    }
+  ],
+  "env": {
+    "NEWSAPI_KEY": "@newsapi_key",
+    "NEWSDATA_KEY": "@newsdata_key",
+    "BING_API_KEY": "@bing_api_key",
+    "SERPAPI_KEY": "@serpapi_key",
+    "GOOGLE_SEARCH_API_KEY": "@google_search_api_key",
+    "GOOGLE_SEARCH_ENGINE_ID": "@google_search_engine_id",
+    "GITHUB_TOKEN": "@github_token",
+    "ENABLE_NEWS_FILTER": "true"
+  },
+  "regions": ["hkg1", "sin1"],
+  "functions": {
+    "api/**/*.py": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
+}

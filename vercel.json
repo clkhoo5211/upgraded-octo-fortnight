@@ -41,5 +41,7 @@
       "maxDuration": 60,
       "memory": 1024
     }
-  }
+  },
+  "installCommand": "pip install -r requirements.txt",
+  "devCommand": "python api/index.py"
 }
