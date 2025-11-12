@@ -11,6 +11,31 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 from pathlib import Path
 
+# 全局内存存储（用于Vercel无服务器环境）
+# 注意：在无服务器环境中，每次函数调用都是独立的
+# 理想情况下应该使用外部数据库（如Vercel KV、Postgres等）
+_global_tokens_data = None
+
+def _get_global_tokens_data():
+    """获取全局Token数据（单例模式）"""
+    global _global_tokens_data
+    if _global_tokens_data is None:
+        _global_tokens_data = {
+            'api_keys': {},
+            'access_tokens': {},
+            'refresh_tokens': {},
+            'users': {}
+        }
+        # 尝试从文件加载（如果存在）
+        try:
+            tokens_path = Path(__file__).parent.parent.parent / "tokens.json"
+            if tokens_path.exists():
+                with open(tokens_path, 'r', encoding='utf-8') as f:
+                    _global_tokens_data = json.load(f)
+        except Exception as e:
+            print(f"加载Token文件失败（使用内存存储）: {e}")
+    return _global_tokens_data
+
 class TokenManager:
     """Token管理器"""
     
@@ -18,44 +43,33 @@ class TokenManager:
         """
         初始化Token管理器
         
+        注意：在Vercel无服务器环境中，使用内存存储
+        每次部署重启后数据会丢失
+        生产环境建议使用Vercel KV或Postgres数据库
+        
         Args:
-            tokens_file: Token存储文件路径
+            tokens_file: Token存储文件路径（在无服务器环境中不使用）
         """
         self.tokens_file = tokens_file
-        self.tokens_dir = Path(__file__).parent.parent.parent
-        self.tokens_path = self.tokens_dir / tokens_file
-        self._load_tokens()
-    
-    def _load_tokens(self):
-        """加载Token数据"""
-        if self.tokens_path.exists():
-            try:
-                with open(self.tokens_path, 'r', encoding='utf-8') as f:
-                    self.tokens_data = json.load(f)
-            except Exception as e:
-                print(f"加载Token文件失败: {e}")
-                self.tokens_data = {
-                    'api_keys': {},
-                    'access_tokens': {},
-                    'refresh_tokens': {},
-                    'users': {}
-                }
-        else:
-            self.tokens_data = {
-                'api_keys': {},
-                'access_tokens': {},
-                'refresh_tokens': {},
-                'users': {}
-            }
-            self._save_tokens()
+        self.tokens_data = _get_global_tokens_data()
     
     def _save_tokens(self):
         """保存Token数据"""
+        # 在无服务器环境中，数据存储在内存中
+        # 尝试保存到文件（如果文件系统可写）
         try:
-            with open(self.tokens_path, 'w', encoding='utf-8') as f:
-                json.dump(self.tokens_data, f, ensure_ascii=False, indent=2)
+            tokens_path = Path(__file__).parent.parent.parent / "tokens.json"
+            # 尝试写入/tmp目录（Vercel允许写入）
+            tmp_path = Path("/tmp") / "tokens.json"
+            try:
+                with open(tmp_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.tokens_data, f, ensure_ascii=False, indent=2)
+            except:
+                # 如果/tmp也写不了，就只使用内存
+                pass
         except Exception as e:
-            print(f"保存Token文件失败: {e}")
+            # 文件保存失败不影响内存存储
+            pass
     
     def generate_api_key(self, user_id: str, name: str = "default") -> str:
         """
