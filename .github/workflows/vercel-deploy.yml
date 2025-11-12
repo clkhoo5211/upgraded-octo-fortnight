@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -15,6 +16,9 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # 只有在配置了Vercel token时才运行
+    if: github.event_name != 'pull_request' || secrets.VERCEL_TOKEN != ''
+    
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -22,11 +26,32 @@ jobs:
       - name: 安装 Vercel CLI
         run: npm install --global vercel@latest
 
+      - name: 检查Vercel Token
+        id: check_token
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "⚠️ VERCEL_TOKEN not configured, skipping Vercel deployment"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ VERCEL_TOKEN found"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 拉取 Vercel 环境信息
+        if: steps.check_token.outputs.skip == 'false'
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: 构建项目
+        if: steps.check_token.outputs.skip == 'false'
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: 部署到 Vercel
+        if: steps.check_token.outputs.skip == 'false'
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: 提示配置Token
+        if: steps.check_token.outputs.skip == 'true'
+        run: |
+          echo "⚠️ Vercel deployment skipped"
+          echo "To enable Vercel deployment, add VERCEL_TOKEN to GitHub Secrets"
+          echo "See: https://github.com/clkhoo5211/upgraded-octo-fortnight/blob/main/.github/workflows/README.md"

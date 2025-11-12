@@ -1,0 +1,71 @@
+name: 测试和验证
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 运行测试
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 测试模块导入
+        run: |
+          echo "测试NewsSearcher导入..."
+          python -c "
+          from src.news_tools.news_searcher import NewsSearcher
+          searcher = NewsSearcher()
+          print('✅ NewsSearcher initialized successfully')
+          "
+      
+      - name: 测试ContentDownloader导入
+        run: |
+          echo "测试ContentDownloader导入..."
+          python -c "
+          from src.news_tools.content_downloader import ContentDownloader
+          downloader = ContentDownloader()
+          print('✅ ContentDownloader initialized successfully')
+          "
+      
+      - name: 测试NewsFilter导入
+        run: |
+          echo "测试NewsFilter导入..."
+          python -c "
+          from src.news_tools.news_filter import NewsFilter
+          filter = NewsFilter.create_default_filter()
+          print('✅ NewsFilter initialized successfully')
+          "
+      
+      - name: 测试API端点语法
+        run: |
+          echo "测试API端点语法..."
+          python -m py_compile api/index.py api/health.py api/search.py api/download.py api/test.py
+          echo "✅ 所有API端点语法正确"
+      
+      - name: 运行功能测试（如果存在）
+        continue-on-error: true
+        run: |
+          if [ -f "test_features.py" ]; then
+            python test_features.py
+          else
+            echo "⚠️ test_features.py not found, skipping"
+          fi
+
