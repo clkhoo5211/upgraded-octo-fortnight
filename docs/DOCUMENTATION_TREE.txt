@@ -1,0 +1,58 @@
+文档目录结构
+=============
+
+docs/
+├── README.md                          # 文档索引（从这里开始）
+│
+├── api/                               # API相关文档 (4个文件)
+│   ├── API_USAGE_GUIDE.md           # API完整使用指南
+│   ├── QUICK_START.md                # 快速开始指南
+│   ├── CATEGORY_MANAGER_GUIDE.md     # 分类管理指南
+│   └── KEYWORD_OPTIMIZER_GUIDE.md    # 关键词优化指南
+│
+├── security/                          # 安全相关文档 (3个文件)
+│   ├── API_SECURITY_GUIDE.md         # API安全指南
+│   ├── GITHUB_TOKEN_SETUP.md         # GitHub Token设置
+│   └── FINE_GRAINED_TOKEN_GUIDE.md   # Fine-grained Token指南
+│
+├── deployment/                        # 部署相关文档 (9个文件)
+│   ├── VERCEL_CRON_GUIDE.md          # Vercel Cron设置
+│   ├── AUTO_ARCHIVE_SETUP.md         # 自动归档设置
+│   ├── ENV_SETUP.md                  # 环境变量设置
+│   ├── VERCEL_DEPLOY_GUIDE.md        # Vercel部署指南
+│   ├── VERCEL_FINAL_DEPLOY_GUIDE.md  # Vercel最终部署指南
+│   ├── VERCEL_QUICK_START.md         # Vercel快速开始
+│   ├── VERCEL_NO_SECRETS_GUIDE.md    # Vercel无密钥指南
+│   ├── GITHUB_ACTIONS_DEPLOYMENT.md  # GitHub Actions部署
+│   └── DEPLOYMENT.md                 # 部署总览
+│
+├── testing/                           # 测试相关文档 (7个文件)
+│   ├── TEST_RESULTS.md               # 测试结果
+│   ├── TEST_REPORT.md                # 测试报告
+│   ├── TESTING_STATUS.md             # 测试状态
+│   ├── COMPLETE_TEST_SUMMARY.md      # 完整测试总结
+│   ├── FINAL_TEST_SUMMARY.md         # 最终测试总结
+│   ├── MANUAL_ARCHIVE_TEST.md        # 手动归档测试
+│   └── ARCHIVE_FILE_LOCATION.md      # 归档文件位置
+│
+├── troubleshooting/                   # 故障排除文档 (10个文件)
+│   ├── VERCEL_CONFIG_FIX.md          # Vercel配置修复
+│   ├── VERCEL_DEPLOY_TROUBLESHOOTING.md  # Vercel部署故障排除
+│   ├── VERCEL_DEPLOY_HOOK_FIX.md     # Vercel部署Hook修复
+│   ├── VERCEL_DEPLOYMENT_FIXED.md    # Vercel部署修复
+│   ├── VERCEL_FIX_README.md          # Vercel修复说明
+│   ├── DIAGNOSIS_SUMMARY.md          # 诊断总结
+│   ├── FIXES_SUMMARY.md              # 修复总结
+│   ├── CHECK_RUNTIME_LOGS.md        # 检查运行时日志
+│   ├── HOW_TO_VIEW_LOGS.md          # 如何查看日志
+│   └── VIEW_RUNTIME_LOGS_GUIDE.md   # 查看运行时日志指南
+│
+└── archive/                           # 归档/历史文档 (5个文件)
+    ├── COMPLETE_FEATURES.md         # 完整功能列表
+    ├── SUCCESS_REPORT.md            # 成功报告
+    ├── ENV_CONFIG.md                # 环境配置（历史）
+    ├── ENV_SETUP_GUIDE.md           # 环境设置指南（历史）
+    └── IMMEDIATE_DEPLOY_ACTION.md   # 立即部署操作（历史）
+
+总计: 38个文档文件
+
