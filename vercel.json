@@ -32,6 +32,10 @@
       "dest": "/api/archive.py"
     },
     {
+      "src": "/api/optimize_keywords",
+      "dest": "/api/optimize_keywords.py"
+    },
+    {
       "src": "/",
       "dest": "/api/index.py"
     }
