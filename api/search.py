@@ -72,7 +72,8 @@ class handler(BaseHTTPRequestHandler):
             keywords = data.get('keywords')
             categories = data.get('categories')
             languages = data.get('languages', 'all')
-            date_range = data.get('date_range', 'last_7_days')
+            # 默认只搜索当日和前一日的新闻
+            date_range = data.get('date_range', 'today_and_yesterday')
             max_results = int(data.get('max_results', 50))
             
             # 获取搜索器

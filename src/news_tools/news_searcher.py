@@ -317,7 +317,7 @@ class NewsSearcher:
         keywords: Optional[str] = None,
         categories: Optional[List[str]] = None,
         languages: str = 'all',
-        date_range: str = 'last_7_days',
+        date_range: str = 'today_and_yesterday',
         sources: Optional[List[str]] = None,
         max_results: int = 50
     ) -> List[Dict[str, Any]]:
@@ -328,7 +328,8 @@ class NewsSearcher:
             keywords: 搜索关键词
             categories: 新闻分类列表
             languages: 语言过滤 (zh/en/all)
-            date_range: 日期范围 (yesterday/last_7_days/last_30_days)
+            date_range: 日期范围 (today_and_yesterday/yesterday/today/last_7_days/last_30_days)
+                        默认: today_and_yesterday (当日和前一日的新闻)
             sources: 指定新闻源
             max_results: 最大结果数
             
@@ -358,8 +359,9 @@ class NewsSearcher:
         # 4. Google News（免费RSS）
         tasks.append(self._search_google_news(keywords, languages, max_results))
         
-        # 5. Hacker News
-        if languages in ['en', 'all']:
+        # 5. Hacker News (仅当日最新，不包含历史热门)
+        # 注意：Hacker News默认返回最新新闻，不是历史热门，符合需求
+        if languages in ['en', 'all'] and date_range in ['today_and_yesterday', 'today', 'yesterday']:
             tasks.append(self._search_hackernews(20))
         
         # 6. Product Hunt
