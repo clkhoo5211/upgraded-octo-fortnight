@@ -292,8 +292,10 @@ class handler(BaseHTTPRequestHandler):
         
         user_id = user_info['user_id']
         name = data.get('name', 'default')
+        plan = user_info.get('plan', 'free')
+        rate_limit = user_info.get('rate_limit', 1000)
         
-        api_key = token_manager.generate_api_key(user_id, name)
+        api_key = token_manager.generate_api_key(user_id, name, plan, rate_limit)
         
         self._send_json(201, {
             'success': True,
