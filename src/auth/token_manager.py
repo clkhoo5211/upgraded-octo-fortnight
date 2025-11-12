@@ -1,118 +1,119 @@
 """
-Token管理模块
-支持API Key、Access Token和Refresh Token
+Token管理模块 - 基于签名的无状态Token系统
+使用HMAC签名，无需存储Token，完全无状态
 """
 import os
 import json
 import secrets
 import hashlib
-import time
+import hmac
+import base64
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
-from pathlib import Path
+from urllib.parse import quote, unquote
 
-# 全局内存存储（用于Vercel无服务器环境）
-# 注意：在无服务器环境中，每次函数调用都是独立的
-# 理想情况下应该使用外部数据库（如Vercel KV、Postgres等）
-_global_tokens_data = None
+# 获取签名密钥（从环境变量）
+def _get_secret_key() -> str:
+    """获取签名密钥"""
+    return os.getenv('ADMIN_SECRET', 'change-me-in-production')
 
-def _get_global_tokens_data():
-    """获取全局Token数据（单例模式）"""
-    global _global_tokens_data
-    if _global_tokens_data is None:
-        _global_tokens_data = {
-            'api_keys': {},
-            'access_tokens': {},
-            'refresh_tokens': {},
-            'users': {}
-        }
-        # 尝试从文件加载（如果存在）
-        try:
-            tokens_path = Path(__file__).parent.parent.parent / "tokens.json"
-            if tokens_path.exists():
-                with open(tokens_path, 'r', encoding='utf-8') as f:
-                    _global_tokens_data = json.load(f)
-        except Exception as e:
-            print(f"加载Token文件失败（使用内存存储）: {e}")
-    return _global_tokens_data
+# 仅存储用户信息（用于速率限制和计划管理）
+# Token本身不需要存储，因为包含在签名中
+_global_users_data = None
+
+def _get_global_users_data():
+    """获取全局用户数据（仅用于速率限制）"""
+    global _global_users_data
+    if _global_users_data is None:
+        _global_users_data = {}
+    return _global_users_data
 
 class TokenManager:
-    """Token管理器"""
+    """Token管理器 - 基于签名的无状态实现"""
     
-    def __init__(self, tokens_file: str = "tokens.json"):
-        """
-        初始化Token管理器
-        
-        注意：在Vercel无服务器环境中，使用内存存储
-        每次部署重启后数据会丢失
-        生产环境建议使用Vercel KV或Postgres数据库
-        
-        Args:
-            tokens_file: Token存储文件路径（在无服务器环境中不使用）
-        """
-        self.tokens_file = tokens_file
-        self.tokens_data = _get_global_tokens_data()
+    def __init__(self):
+        """初始化Token管理器"""
+        self.secret_key = _get_secret_key()
+        self.users_data = _get_global_users_data()
     
-    def _save_tokens(self):
-        """保存Token数据"""
-        # 在无服务器环境中，数据存储在内存中
-        # 尝试保存到文件（如果文件系统可写）
+    def _sign(self, data: str) -> str:
+        """生成HMAC签名"""
+        return hmac.new(
+            self.secret_key.encode('utf-8'),
+            data.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+    
+    def _verify_signature(self, data: str, signature: str) -> bool:
+        """验证签名"""
+        expected_signature = self._sign(data)
+        return hmac.compare_digest(expected_signature, signature)
+    
+    def _encode_token(self, payload: Dict) -> str:
+        """编码Token（Base64 + 签名）"""
+        # 创建数据字符串
+        data_str = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        # 生成签名
+        signature = self._sign(data_str)
+        # 组合数据
+        token_data = f"{data_str}|{signature}"
+        # Base64编码
+        return base64.urlsafe_b64encode(token_data.encode('utf-8')).decode('utf-8').rstrip('=')
+    
+    def _decode_token(self, token: str) -> Optional[Dict]:
+        """解码并验证Token"""
         try:
-            tokens_path = Path(__file__).parent.parent.parent / "tokens.json"
-            # 尝试写入/tmp目录（Vercel允许写入）
-            tmp_path = Path("/tmp") / "tokens.json"
-            try:
-                with open(tmp_path, 'w', encoding='utf-8') as f:
-                    json.dump(self.tokens_data, f, ensure_ascii=False, indent=2)
-            except:
-                # 如果/tmp也写不了，就只使用内存
-                pass
+            # Base64解码
+            token_data = base64.urlsafe_b64decode(token + '==').decode('utf-8')
+            # 分离数据和签名
+            if '|' not in token_data:
+                return None
+            data_str, signature = token_data.rsplit('|', 1)
+            # 验证签名
+            if not self._verify_signature(data_str, signature):
+                return None
+            # 解析JSON
+            return json.loads(data_str)
         except Exception as e:
-            # 文件保存失败不影响内存存储
-            pass
+            print(f"Token解码错误: {e}")
+            return None
     
-    def generate_api_key(self, user_id: str, name: str = "default") -> str:
+    def generate_api_key(self, user_id: str, name: str = "default", plan: str = "free", rate_limit: int = 100) -> str:
         """
-        生成API Key
+        生成API Key（签名Token，无需存储）
         
         Args:
             user_id: 用户ID
             name: API Key名称
+            plan: 用户计划
+            rate_limit: 速率限制
         
         Returns:
             API Key字符串
         """
-        api_key = f"ak_{secrets.token_urlsafe(32)}"
-        hashed_key = self._hash_token(api_key)
-        
-        if user_id not in self.tokens_data['users']:
-            self.tokens_data['users'][user_id] = {
-                'created_at': datetime.now().isoformat(),
-                'api_keys': [],
-                'rate_limit': 1000,  # 每小时请求数
-                'enabled': True
-            }
-        
-        key_data = {
-            'name': name,
-            'hashed_key': hashed_key,
-            'created_at': datetime.now().isoformat(),
-            'last_used': None,
-            'enabled': True
-        }
-        
-        self.tokens_data['api_keys'][hashed_key] = {
+        # API Key永不过期，但包含创建时间用于追踪
+        payload = {
+            'type': 'api_key',
             'user_id': user_id,
             'name': name,
-            'created_at': datetime.now().isoformat(),
-            'last_used': None,
-            'enabled': True
+            'plan': plan,
+            'rate_limit': rate_limit,
+            'created_at': datetime.now().isoformat()
         }
         
-        self.tokens_data['users'][user_id]['api_keys'].append(hashed_key)
-        self._save_tokens()
+        # 编码Token
+        token = self._encode_token(payload)
         
-        return api_key
+        # 存储用户信息（仅用于速率限制，不存储Token本身）
+        if user_id not in self.users_data:
+            self.users_data[user_id] = {
+                'plan': plan,
+                'rate_limit': rate_limit,
+                'enabled': True,
+                'created_at': datetime.now().isoformat()
+            }
+        
+        return f"ak_{token}"
     
     def generate_access_token(
         self,
@@ -122,56 +123,65 @@ class TokenManager:
         is_paid: bool = False
     ) -> Dict[str, str]:
         """
-        生成Access Token和Refresh Token
+        生成Access Token和Refresh Token（签名Token，无需存储）
         
         Args:
             user_id: 用户ID
-            expires_in: Access Token过期时间（秒），默认1小时
-            plan: 用户计划（free/basic/premium）
+            expires_in: Access Token过期时间（秒）
+            plan: 用户计划
             is_paid: 是否为付费Token
         
         Returns:
             包含access_token和refresh_token的字典
         """
-        access_token = f"at_{secrets.token_urlsafe(32)}"
-        refresh_token = f"rt_{secrets.token_urlsafe(32)}"
-        
-        hashed_access = self._hash_token(access_token)
-        hashed_refresh = self._hash_token(refresh_token)
-        
         # 根据计划设置过期时间
         if is_paid:
-            # 付费Token：30天
-            expires_in = 30 * 24 * 3600
-            refresh_expires_at = datetime.now() + timedelta(days=90)  # Refresh Token 90天
+            expires_in = 30 * 24 * 3600  # 30天
+            refresh_expires_in = 90 * 24 * 3600  # 90天
         else:
-            # 免费Token：1小时
-            expires_in = 3600
-            refresh_expires_at = datetime.now() + timedelta(days=7)  # Refresh Token 7天
+            expires_in = 3600  # 1小时
+            refresh_expires_in = 7 * 24 * 3600  # 7天
         
         expires_at = datetime.now() + timedelta(seconds=expires_in)
+        refresh_expires_at = datetime.now() + timedelta(seconds=refresh_expires_in)
         
-        # 存储Access Token（包含计划信息）
-        self.tokens_data['access_tokens'][hashed_access] = {
+        # 计算速率限制
+        rate_limits = {'free': 100, 'basic': 1000, 'premium': 10000}
+        rate_limit = rate_limits.get(plan, 100)
+        
+        # Access Token payload
+        access_payload = {
+            'type': 'access_token',
             'user_id': user_id,
-            'expires_at': expires_at.isoformat(),
-            'created_at': datetime.now().isoformat(),
             'plan': plan,
             'is_paid': is_paid,
-            'expires_in': expires_in
+            'rate_limit': rate_limit,
+            'expires_at': expires_at.isoformat(),
+            'created_at': datetime.now().isoformat()
         }
         
-        # 存储Refresh Token
-        self.tokens_data['refresh_tokens'][hashed_refresh] = {
+        # Refresh Token payload
+        refresh_payload = {
+            'type': 'refresh_token',
             'user_id': user_id,
-            'access_token_hash': hashed_access,
-            'expires_at': refresh_expires_at.isoformat(),
-            'created_at': datetime.now().isoformat(),
             'plan': plan,
-            'is_paid': is_paid
+            'is_paid': is_paid,
+            'expires_at': refresh_expires_at.isoformat(),
+            'created_at': datetime.now().isoformat()
         }
         
-        self._save_tokens()
+        # 编码Tokens
+        access_token = f"at_{self._encode_token(access_payload)}"
+        refresh_token = f"rt_{self._encode_token(refresh_payload)}"
+        
+        # 存储用户信息（仅用于速率限制）
+        if user_id not in self.users_data:
+            self.users_data[user_id] = {
+                'plan': plan,
+                'rate_limit': rate_limit,
+                'enabled': True,
+                'created_at': datetime.now().isoformat()
+            }
         
         return {
             'access_token': access_token,
@@ -185,7 +195,7 @@ class TokenManager:
     
     def verify_api_key(self, api_key: str) -> Optional[Dict]:
         """
-        验证API Key
+        验证API Key（无需查找数据库，直接验证签名）
         
         Args:
             api_key: API Key字符串
@@ -193,35 +203,32 @@ class TokenManager:
         Returns:
             如果有效返回用户信息，否则返回None
         """
-        hashed_key = self._hash_token(api_key)
+        if not api_key.startswith('ak_'):
+            return None
         
-        if hashed_key in self.tokens_data['api_keys']:
-            key_info = self.tokens_data['api_keys'][hashed_key]
-            
-            if not key_info.get('enabled', True):
-                return None
-            
-            user_id = key_info['user_id']
-            user_info = self.tokens_data['users'].get(user_id)
-            
-            if not user_info or not user_info.get('enabled', True):
-                return None
-            
-            # 更新最后使用时间
-            key_info['last_used'] = datetime.now().isoformat()
-            self._save_tokens()
-            
-            return {
-                'user_id': user_id,
-                'rate_limit': user_info.get('rate_limit', 1000),
-                'api_key_name': key_info.get('name', 'default')
-            }
+        token = api_key[3:]  # 移除 'ak_' 前缀
+        payload = self._decode_token(token)
         
-        return None
+        if not payload or payload.get('type') != 'api_key':
+            return None
+        
+        # 检查用户是否被禁用（如果用户数据存在）
+        user_id = payload['user_id']
+        user_info = self.users_data.get(user_id)
+        if user_info and not user_info.get('enabled', True):
+            return None
+        
+        return {
+            'user_id': user_id,
+            'rate_limit': payload.get('rate_limit', 1000),
+            'plan': payload.get('plan', 'free'),
+            'is_paid': payload.get('plan') in ['basic', 'premium'],
+            'api_key_name': payload.get('name', 'default')
+        }
     
     def verify_access_token(self, access_token: str) -> Optional[Dict]:
         """
-        验证Access Token
+        验证Access Token（无需查找数据库，直接验证签名和过期时间）
         
         Args:
             access_token: Access Token字符串
@@ -229,40 +236,79 @@ class TokenManager:
         Returns:
             如果有效返回用户信息，否则返回None
         """
-        hashed_token = self._hash_token(access_token)
+        if not access_token.startswith('at_'):
+            return None
         
-        if hashed_token in self.tokens_data['access_tokens']:
-            token_info = self.tokens_data['access_tokens'][hashed_token]
-            
-            expires_at = datetime.fromisoformat(token_info['expires_at'])
+        token = access_token[3:]  # 移除 'at_' 前缀
+        payload = self._decode_token(token)
+        
+        if not payload or payload.get('type') != 'access_token':
+            return None
+        
+        # 检查过期时间
+        expires_at_str = payload.get('expires_at')
+        if expires_at_str:
+            expires_at = datetime.fromisoformat(expires_at_str)
             if datetime.now() > expires_at:
-                # Token已过期，标记但保留（用于续期）
-                token_info['expired'] = True
-                self._save_tokens()
                 return {
                     'expired': True,
-                    'expires_at': expires_at.isoformat(),
-                    'user_id': token_info.get('user_id'),
-                    'plan': token_info.get('plan', 'free'),
-                    'is_paid': token_info.get('is_paid', False)
+                    'expires_at': expires_at_str,
+                    'user_id': payload.get('user_id'),
+                    'plan': payload.get('plan', 'free'),
+                    'is_paid': payload.get('is_paid', False)
                 }
-            
-            user_id = token_info['user_id']
-            user_info = self.tokens_data['users'].get(user_id)
-            
-            if not user_info or not user_info.get('enabled', True):
-                return None
-            
-            return {
-                'user_id': user_id,
-                'rate_limit': user_info.get('rate_limit', 1000),
-                'plan': token_info.get('plan', 'free'),
-                'is_paid': token_info.get('is_paid', False),
-                'expires_at': expires_at.isoformat(),
-                'expired': False
-            }
         
-        return None
+        # 检查用户是否被禁用
+        user_id = payload['user_id']
+        user_info = self.users_data.get(user_id)
+        if user_info and not user_info.get('enabled', True):
+            return None
+        
+        return {
+            'user_id': user_id,
+            'rate_limit': payload.get('rate_limit', 1000),
+            'plan': payload.get('plan', 'free'),
+            'is_paid': payload.get('is_paid', False),
+            'expires_at': expires_at_str,
+            'expired': False
+        }
+    
+    def refresh_access_token(self, refresh_token: str) -> Optional[Dict]:
+        """
+        使用Refresh Token刷新Access Token
+        
+        Args:
+            refresh_token: Refresh Token字符串
+        
+        Returns:
+            新的Access Token信息，如果无效返回None
+        """
+        if not refresh_token.startswith('rt_'):
+            return None
+        
+        token = refresh_token[3:]  # 移除 'rt_' 前缀
+        payload = self._decode_token(token)
+        
+        if not payload or payload.get('type') != 'refresh_token':
+            return None
+        
+        # 检查过期时间
+        expires_at_str = payload.get('expires_at')
+        if expires_at_str:
+            expires_at = datetime.fromisoformat(expires_at_str)
+            if datetime.now() > expires_at:
+                return None
+        
+        # 检查用户是否被禁用
+        user_id = payload['user_id']
+        user_info = self.users_data.get(user_id)
+        if user_info and not user_info.get('enabled', True):
+            return None
+        
+        # 生成新的Access Token
+        plan = payload.get('plan', 'free')
+        is_paid = payload.get('is_paid', False)
+        return self.generate_access_token(user_id, plan=plan, is_paid=is_paid)
     
     def renew_access_token(
         self,
@@ -279,37 +325,29 @@ class TokenManager:
         Returns:
             新的Token信息，如果无法续期返回None
         """
-        hashed_token = self._hash_token(access_token)
+        payload = None
+        if access_token.startswith('at_'):
+            token = access_token[3:]
+            payload = self._decode_token(token)
         
-        if hashed_token in self.tokens_data['access_tokens']:
-            token_info = self.tokens_data['access_tokens'][hashed_token]
-            user_id = token_info['user_id']
-            plan = token_info.get('plan', 'free')
-            is_paid = token_info.get('is_paid', False)
-            
-            # 检查用户是否仍然有效
-            user_info = self.tokens_data['users'].get(user_id)
-            if not user_info or not user_info.get('enabled', True):
-                return None
-            
-            # 删除旧Token
-            del self.tokens_data['access_tokens'][hashed_token]
-            
-            # 删除对应的Refresh Token
-            for refresh_hash, refresh_info in list(self.tokens_data['refresh_tokens'].items()):
-                if refresh_info.get('access_token_hash') == hashed_token:
-                    del self.tokens_data['refresh_tokens'][refresh_hash]
-                    break
-            
-            # 生成新Token
-            if new_expires_in:
-                expires_in = new_expires_in
-            else:
-                expires_in = None  # 使用默认值
-            
-            return self.generate_access_token(user_id, expires_in, plan, is_paid)
+        if not payload or payload.get('type') != 'access_token':
+            return None
         
-        return None
+        # 只有付费Token可以续期
+        if not payload.get('is_paid', False):
+            return None
+        
+        user_id = payload['user_id']
+        plan = payload.get('plan', 'free')
+        is_paid = payload.get('is_paid', False)
+        
+        # 检查用户是否仍然有效
+        user_info = self.users_data.get(user_id)
+        if user_info and not user_info.get('enabled', True):
+            return None
+        
+        # 生成新Token
+        return self.generate_access_token(user_id, new_expires_in or None, plan, is_paid)
     
     def get_token_status(self, access_token: str) -> Dict:
         """
@@ -321,143 +359,102 @@ class TokenManager:
         Returns:
             Token状态信息
         """
-        hashed_token = self._hash_token(access_token)
-        
-        if hashed_token not in self.tokens_data['access_tokens']:
+        if not access_token.startswith('at_'):
             return {
                 'valid': False,
-                'error': 'Token not found'
+                'error': 'Invalid token format'
             }
         
-        token_info = self.tokens_data['access_tokens'][hashed_token]
-        expires_at = datetime.fromisoformat(token_info['expires_at'])
+        token = access_token[3:]
+        payload = self._decode_token(token)
+        
+        if not payload or payload.get('type') != 'access_token':
+            return {
+                'valid': False,
+                'error': 'Token not found or invalid'
+            }
+        
+        expires_at_str = payload.get('expires_at')
+        if not expires_at_str:
+            return {
+                'valid': False,
+                'error': 'Token missing expiration'
+            }
+        
+        expires_at = datetime.fromisoformat(expires_at_str)
         now = datetime.now()
         
         if now > expires_at:
             return {
                 'valid': False,
                 'expired': True,
-                'expires_at': expires_at.isoformat(),
+                'expires_at': expires_at_str,
                 'expired_since': (now - expires_at).total_seconds(),
-                'plan': token_info.get('plan', 'free'),
-                'is_paid': token_info.get('is_paid', False),
-                'can_renew': token_info.get('is_paid', False)  # 只有付费Token可以续期
+                'plan': payload.get('plan', 'free'),
+                'is_paid': payload.get('is_paid', False),
+                'can_renew': payload.get('is_paid', False)
             }
         else:
             remaining = (expires_at - now).total_seconds()
             return {
                 'valid': True,
                 'expired': False,
-                'expires_at': expires_at.isoformat(),
+                'expires_at': expires_at_str,
                 'remaining_seconds': remaining,
                 'remaining_hours': remaining / 3600,
-                'plan': token_info.get('plan', 'free'),
-                'is_paid': token_info.get('is_paid', False)
+                'plan': payload.get('plan', 'free'),
+                'is_paid': payload.get('is_paid', False)
             }
     
-    def refresh_access_token(self, refresh_token: str) -> Optional[Dict]:
-        """
-        使用Refresh Token刷新Access Token
-        
-        Args:
-            refresh_token: Refresh Token字符串
-        
-        Returns:
-            新的Access Token信息，如果无效返回None
-        """
-        hashed_refresh = self._hash_token(refresh_token)
-        
-        if hashed_refresh in self.tokens_data['refresh_tokens']:
-            refresh_info = self.tokens_data['refresh_tokens'][hashed_refresh]
-            
-            expires_at = datetime.fromisoformat(refresh_info['expires_at'])
-            if datetime.now() > expires_at:
-                # Refresh Token已过期，删除
-                del self.tokens_data['refresh_tokens'][hashed_refresh]
-                if refresh_info['access_token_hash'] in self.tokens_data['access_tokens']:
-                    del self.tokens_data['access_tokens'][refresh_info['access_token_hash']]
-                self._save_tokens()
-                return None
-            
-            user_id = refresh_info['user_id']
-            
-            # 删除旧的Access Token
-            old_access_hash = refresh_info['access_token_hash']
-            if old_access_hash in self.tokens_data['access_tokens']:
-                del self.tokens_data['access_tokens'][old_access_hash]
-            
-            # 生成新的Access Token
-            return self.generate_access_token(user_id)
-        
-        return None
+    def get_user_info(self, user_id: str) -> Optional[Dict]:
+        """获取用户信息（仅用于速率限制）"""
+        return self.users_data.get(user_id)
+    
+    def update_user_rate_limit(self, user_id: str, rate_limit: int):
+        """更新用户速率限制"""
+        if user_id not in self.users_data:
+            self.users_data[user_id] = {'rate_limit': rate_limit, 'enabled': True}
+        else:
+            self.users_data[user_id]['rate_limit'] = rate_limit
+    
+    def disable_user(self, user_id: str):
+        """禁用用户"""
+        if user_id in self.users_data:
+            self.users_data[user_id]['enabled'] = False
+    
+    def enable_user(self, user_id: str):
+        """启用用户"""
+        if user_id in self.users_data:
+            self.users_data[user_id]['enabled'] = True
+    
+    def list_api_keys(self, user_id: Optional[str] = None) -> List[Dict]:
+        """列出API Keys（无法列出，因为Token不存储）"""
+        # 由于Token不存储，无法列出
+        # 如果需要此功能，可以维护一个API Key元数据列表
+        return []
     
     def revoke_api_key(self, api_key: str) -> bool:
-        """撤销API Key"""
-        hashed_key = self._hash_token(api_key)
-        if hashed_key in self.tokens_data['api_keys']:
-            self.tokens_data['api_keys'][hashed_key]['enabled'] = False
-            self._save_tokens()
+        """撤销API Key（通过禁用用户实现）"""
+        payload = None
+        if api_key.startswith('ak_'):
+            token = api_key[3:]
+            payload = self._decode_token(token)
+        
+        if payload and payload.get('type') == 'api_key':
+            user_id = payload['user_id']
+            self.disable_user(user_id)
             return True
         return False
     
     def revoke_token(self, access_token: str) -> bool:
-        """撤销Access Token和对应的Refresh Token"""
-        hashed_token = self._hash_token(access_token)
+        """撤销Token（通过禁用用户实现）"""
+        payload = None
+        if access_token.startswith('at_'):
+            token = access_token[3:]
+            payload = self._decode_token(token)
         
-        if hashed_token in self.tokens_data['access_tokens']:
-            token_info = self.tokens_data['access_tokens'][hashed_token]
-            
-            # 删除Access Token
-            del self.tokens_data['access_tokens'][hashed_token]
-            
-            # 删除对应的Refresh Token
-            for refresh_hash, refresh_info in list(self.tokens_data['refresh_tokens'].items()):
-                if refresh_info['access_token_hash'] == hashed_token:
-                    del self.tokens_data['refresh_tokens'][refresh_hash]
-                    break
-            
-            self._save_tokens()
+        if payload and payload.get('type') == 'access_token':
+            user_id = payload['user_id']
+            self.disable_user(user_id)
             return True
-        
         return False
-    
-    def get_user_info(self, user_id: str) -> Optional[Dict]:
-        """获取用户信息"""
-        return self.tokens_data['users'].get(user_id)
-    
-    def update_user_rate_limit(self, user_id: str, rate_limit: int):
-        """更新用户速率限制"""
-        if user_id in self.tokens_data['users']:
-            self.tokens_data['users'][user_id]['rate_limit'] = rate_limit
-            self._save_tokens()
-    
-    def disable_user(self, user_id: str):
-        """禁用用户"""
-        if user_id in self.tokens_data['users']:
-            self.tokens_data['users'][user_id]['enabled'] = False
-            self._save_tokens()
-    
-    def enable_user(self, user_id: str):
-        """启用用户"""
-        if user_id in self.tokens_data['users']:
-            self.tokens_data['users'][user_id]['enabled'] = True
-            self._save_tokens()
-    
-    def _hash_token(self, token: str) -> str:
-        """哈希Token（SHA-256）"""
-        return hashlib.sha256(token.encode()).hexdigest()
-    
-    def list_api_keys(self, user_id: Optional[str] = None) -> List[Dict]:
-        """列出API Keys"""
-        keys = []
-        for hashed_key, key_info in self.tokens_data['api_keys'].items():
-            if user_id is None or key_info['user_id'] == user_id:
-                keys.append({
-                    'name': key_info.get('name', 'default'),
-                    'created_at': key_info.get('created_at'),
-                    'last_used': key_info.get('last_used'),
-                    'enabled': key_info.get('enabled', True),
-                    'user_id': key_info['user_id']
-                })
-        return keys
-
