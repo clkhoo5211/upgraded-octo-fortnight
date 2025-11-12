@@ -110,9 +110,13 @@ def handler(request):
             }
         }
         
-        return json.dumps(response_data, ensure_ascii=False), {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(response_data, ensure_ascii=False)
         }
     
     except Exception as e:
@@ -120,13 +124,17 @@ def handler(request):
         error_trace = traceback.format_exc()
         print(f"搜索错误: {error_trace}")
         
-        return json.dumps({
-            'success': False,
-            'error': str(e),
-            'count': 0,
-            'news': []
-        }, ensure_ascii=False), {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'status': 500
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'success': False,
+                'error': str(e),
+                'traceback': error_trace,
+                'count': 0,
+                'news': []
+            }, ensure_ascii=False)
         }

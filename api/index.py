@@ -76,19 +76,27 @@ def handler(request):
             'documentation': 'https://github.com/clkhoo5211/upgraded-octo-fortnight'
         }
         
-        return json.dumps(response_data, ensure_ascii=False), {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(response_data, ensure_ascii=False)
         }
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
         print(f"错误: {error_trace}")
-        return json.dumps({
-            'error': str(e),
-            'service': 'Global News Aggregator API'
-        }, ensure_ascii=False), {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'status': 500
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'error': str(e),
+                'traceback': error_trace,
+                'service': 'Global News Aggregator API'
+            }, ensure_ascii=False)
         }

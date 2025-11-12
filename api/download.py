@@ -58,13 +58,16 @@ def handler(request):
         
         news_url = data.get('news_url')
         if not news_url:
-            return json.dumps({
-                'success': False,
-                'error': 'news_url参数是必需的'
-            }, ensure_ascii=False), {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'status': 400
+            return {
+                'statusCode': 400,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({
+                    'success': False,
+                    'error': 'news_url参数是必需的'
+                }, ensure_ascii=False)
             }
         
         include_images = data.get('include_images', 'true').lower() == 'true'
@@ -87,9 +90,13 @@ def handler(request):
         finally:
             loop.close()
         
-        return json.dumps(result, ensure_ascii=False), {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(result, ensure_ascii=False)
         }
     
     except Exception as e:
@@ -108,16 +115,20 @@ def handler(request):
             else:
                 data = body
         
-        return json.dumps({
-            'url': data.get('news_url', ''),
-            'title': '',
-            'content': '',
-            'images': [],
-            'banners': [],
-            'success': False,
-            'error': str(e)
-        }, ensure_ascii=False), {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'status': 500
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'url': data.get('news_url', ''),
+                'title': '',
+                'content': '',
+                'images': [],
+                'banners': [],
+                'success': False,
+                'error': str(e),
+                'traceback': error_trace
+            }, ensure_ascii=False)
         }
