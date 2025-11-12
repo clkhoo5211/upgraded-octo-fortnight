@@ -17,31 +17,5 @@
     "FLASK_ENV": "production",
     "FLASK_DEBUG": "false"
   },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
-        }
-      ]
-    }
-  ],
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60,
-      "memory": 1024
-    }
-  },
-  "installCommand": "pip install -r requirements.txt",
-  "devCommand": "python api/index.py"
+  "installCommand": "pip install -r requirements.txt"
 }
