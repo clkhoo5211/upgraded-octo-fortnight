@@ -8,7 +8,7 @@ import hmac
 import hashlib
 import base64
 from datetime import datetime, timedelta
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 def _get_secret_key() -> str:
     """获取签名密钥（使用ADMIN_SECRET）"""
