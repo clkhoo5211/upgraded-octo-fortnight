@@ -12,8 +12,12 @@ import time
 
 # 添加项目根目录到路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
+
+# 设置环境变量（如果未设置）
+if 'TEST_API_BASE' not in os.environ:
+    os.environ['TEST_API_BASE'] = 'https://upgraded-octo-fortnight.vercel.app'
 
 from tests.config import API_BASE
 
