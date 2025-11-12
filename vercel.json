@@ -28,6 +28,10 @@
       "dest": "/api/download.py"
     },
     {
+      "src": "/api/archive",
+      "dest": "/api/archive.py"
+    },
+    {
       "src": "/",
       "dest": "/api/index.py"
     }

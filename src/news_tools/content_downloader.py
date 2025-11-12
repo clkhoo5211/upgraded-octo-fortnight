@@ -66,12 +66,20 @@ class ContentDownloader:
                 if include_images:
                     images = all_images
             
+            # 提取视频链接
+            videos = self._extract_videos(soup, news_url)
+            
+            # 提取HTML body（完整HTML内容）
+            html_body = self._extract_html_body(soup)
+            
             return {
                 'url': news_url,
                 'title': title,
                 'content': content,
+                'html_body': html_body,
                 'images': images,
                 'banners': banners,
+                'videos': videos,
                 'success': True,
                 'error': None
             }
@@ -81,8 +89,10 @@ class ContentDownloader:
                 'url': news_url,
                 'title': '',
                 'content': '',
+                'html_body': '',
                 'images': [],
                 'banners': [],
+                'videos': [],
                 'success': False,
                 'error': str(e)
             }
@@ -180,6 +190,85 @@ class ContentDownloader:
         # 去重并返回
         return list(dict.fromkeys(images))
     
+    def _extract_videos(self, soup: BeautifulSoup, base_url: str) -> List[Dict[str, str]]:
+        """提取视频链接（包括YouTube、Vimeo、MP4等）"""
+        videos = []
+        
+        # 查找所有video标签
+        video_tags = soup.find_all('video')
+        for video in video_tags:
+            src = video.get('src') or video.get('data-src')
+            if src:
+                if src.startswith('//'):
+                    src = 'https:' + src
+                elif src.startswith('/'):
+                    from urllib.parse import urljoin
+                    src = urljoin(base_url, src)
+                
+                if src.startswith('http'):
+                    videos.append({
+                        'url': src,
+                        'type': 'mp4',
+                        'source': 'video_tag'
+                    })
+        
+        # 查找iframe中的视频（YouTube, Vimeo等）
+        iframe_tags = soup.find_all('iframe')
+        for iframe in iframe_tags:
+            src = iframe.get('src', '')
+            if 'youtube.com' in src or 'youtu.be' in src:
+                videos.append({
+                    'url': src,
+                    'type': 'youtube',
+                    'source': 'iframe'
+                })
+            elif 'vimeo.com' in src:
+                videos.append({
+                    'url': src,
+                    'type': 'vimeo',
+                    'source': 'iframe'
+                })
+            elif src.startswith('http') and (src.endswith('.mp4') or 'video' in src.lower()):
+                videos.append({
+                    'url': src,
+                    'type': 'mp4',
+                    'source': 'iframe'
+                })
+        
+        # 查找data-video-url等属性
+        for element in soup.find_all(attrs={'data-video-url': True}):
+            video_url = element.get('data-video-url')
+            if video_url and video_url.startswith('http'):
+                videos.append({
+                    'url': video_url,
+                    'type': 'unknown',
+                    'source': 'data_attribute'
+                })
+        
+        # 去重
+        seen = set()
+        unique_videos = []
+        for video in videos:
+            if video['url'] not in seen:
+                seen.add(video['url'])
+                unique_videos.append(video)
+        
+        return unique_videos
+    
+    def _extract_html_body(self, soup: BeautifulSoup) -> str:
+        """提取完整的HTML body内容"""
+        # 移除script和style标签
+        for element in soup.select('script, style'):
+            element.decompose()
+        
+        # 获取body内容
+        body = soup.find('body')
+        if body:
+            return str(body)
+        
+        # 如果没有body标签，返回整个文档
+        return str(soup)
+    
     async def download_multiple(
         self,
         urls: List[str],
@@ -202,8 +291,10 @@ class ContentDownloader:
                     'url': '',
                     'title': '',
                     'content': '',
+                    'html_body': '',
                     'images': [],
                     'banners': [],
+                    'videos': [],
                     'success': False,
                     'error': str(result)
                 })

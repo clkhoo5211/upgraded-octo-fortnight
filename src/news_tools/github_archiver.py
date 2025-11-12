@@ -207,6 +207,31 @@ class GitHubArchiver:
             
             lines.append("")
         
+        # 视频
+        if news.get('videos'):
+            lines.append("### 相关视频")
+            lines.append("")
+            
+            for video in news.get('videos', [])[:3]:  # 最多3个视频
+                video_url = video.get('url', '') if isinstance(video, dict) else video
+                video_type = video.get('type', 'unknown') if isinstance(video, dict) else 'unknown'
+                lines.append(f"- **{video_type.upper()}视频**: [{video_url}]({video_url})")
+            
+            lines.append("")
+        
+        # HTML Body（如果存在）
+        if news.get('html_body'):
+            lines.extend([
+                "### HTML原始内容",
+                "",
+                "```html",
+                news['html_body'][:5000],  # 限制长度避免文件过大
+                "```",
+                "",
+                f"*（完整HTML内容已保存，长度: {len(news['html_body'])} 字符）*",
+                ""
+            ])
+        
         # HTML格式
         if save_format == 'md_with_html':
             lines.extend(self._generate_html_block(news))
