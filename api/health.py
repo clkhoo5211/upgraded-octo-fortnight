@@ -103,30 +103,25 @@ def handler(request):
             'migration_note': '如果不使用付费API服务，此服务仅使用免费源也能正常工作'
         }
         
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps(response_data, ensure_ascii=False)
+        return json.dumps(response_data, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         }
     except Exception as e:
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({
-                'status': 'error',
-                'service': 'global-news-mcp',
-                'version': '1.0.0',
-                'error': str(e),
-                'available_sources': [
-                    'Hacker News API',
-                    'Google News RSS',
-                    'Product Hunt GraphQL'
-                ]
-            }, ensure_ascii=False)
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"健康检查错误: {error_trace}")
+        return json.dumps({
+            'status': 'error',
+            'service': 'global-news-mcp',
+            'version': '1.0.0',
+            'error': str(e),
+            'available_sources': [
+                'Hacker News API',
+                'Google News RSS',
+                'Product Hunt GraphQL'
+            ]
+        }, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         }

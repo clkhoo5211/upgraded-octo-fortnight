@@ -42,31 +42,29 @@ def handler(request):
     """
     try:
         # 解析请求
-        method = request.get('httpMethod', 'GET')
+        method = request.get('httpMethod', 'GET') if isinstance(request, dict) else 'GET'
         
         # 获取请求参数
         if method == 'POST':
-            body = request.get('body', '{}')
+            body = request.get('body', '{}') if isinstance(request, dict) else '{}'
             if isinstance(body, str):
                 data = json.loads(body)
             else:
                 data = body
         else:
             # GET请求从queryStringParameters获取
-            data = request.get('queryStringParameters') or {}
+            data = request.get('queryStringParameters') if isinstance(request, dict) else {}
+            data = (data or {}).copy()
         
         news_url = data.get('news_url')
         if not news_url:
-            return {
-                'statusCode': 400,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': json.dumps({
-                    'success': False,
-                    'error': 'news_url参数是必需的'
-                }, ensure_ascii=False)
+            return json.dumps({
+                'success': False,
+                'error': 'news_url参数是必需的'
+            }, ensure_ascii=False), {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'status': 400
             }
         
         include_images = data.get('include_images', 'true').lower() == 'true'
@@ -89,13 +87,9 @@ def handler(request):
         finally:
             loop.close()
         
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps(result, ensure_ascii=False)
+        return json.dumps(result, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         }
     
     except Exception as e:
@@ -103,19 +97,27 @@ def handler(request):
         error_trace = traceback.format_exc()
         print(f"下载错误: {error_trace}")
         
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({
-                'url': data.get('news_url', '') if 'data' in locals() else '',
-                'title': '',
-                'content': '',
-                'images': [],
-                'banners': [],
-                'success': False,
-                'error': str(e)
-            }, ensure_ascii=False)
+        data = {}
+        if isinstance(request, dict):
+            body = request.get('body', '{}')
+            if isinstance(body, str):
+                try:
+                    data = json.loads(body)
+                except:
+                    pass
+            else:
+                data = body
+        
+        return json.dumps({
+            'url': data.get('news_url', ''),
+            'title': '',
+            'content': '',
+            'images': [],
+            'banners': [],
+            'success': False,
+            'error': str(e)
+        }, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'status': 500
         }

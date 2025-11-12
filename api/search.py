@@ -55,19 +55,19 @@ def handler(request):
     """
     try:
         # 解析请求
-        method = request.get('httpMethod', 'GET')
+        method = request.get('httpMethod', 'GET') if isinstance(request, dict) else 'GET'
         
         # 获取请求参数
         if method == 'POST':
-            body = request.get('body', '{}')
+            body = request.get('body', '{}') if isinstance(request, dict) else '{}'
             if isinstance(body, str):
                 data = json.loads(body)
             else:
                 data = body
         else:
             # GET请求从queryStringParameters获取
-            query_params = request.get('queryStringParameters') or {}
-            data = query_params.copy()
+            query_params = request.get('queryStringParameters') if isinstance(request, dict) else {}
+            data = (query_params or {}).copy()
             # 处理数组参数
             if 'categories' in data and isinstance(data['categories'], str):
                 data['categories'] = data['categories'].split(',')
@@ -110,13 +110,9 @@ def handler(request):
             }
         }
         
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps(response_data, ensure_ascii=False)
+        return json.dumps(response_data, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         }
     
     except Exception as e:
@@ -124,16 +120,13 @@ def handler(request):
         error_trace = traceback.format_exc()
         print(f"搜索错误: {error_trace}")
         
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({
-                'success': False,
-                'error': str(e),
-                'count': 0,
-                'news': []
-            }, ensure_ascii=False)
+        return json.dumps({
+            'success': False,
+            'error': str(e),
+            'count': 0,
+            'news': []
+        }, ensure_ascii=False), {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'status': 500
         }
