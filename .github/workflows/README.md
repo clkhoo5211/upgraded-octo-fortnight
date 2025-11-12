@@ -11,26 +11,22 @@
 
 **状态：** ✅ 无需配置即可运行
 
-### 2. vercel-deploy.yml - Vercel部署
-**触发条件：** push到main分支
-**功能：** 自动部署到Vercel
+### 2. vercel-deploy.yml - Vercel部署信息
+**触发条件：** 手动触发（仅用于显示信息）
+**功能：** 显示Vercel部署说明
 
-**需要配置：**
-- `VERCEL_TOKEN` - Vercel访问令牌
-- `VERCEL_ORG_ID` - Vercel组织ID（可选）
-- `VERCEL_PROJECT_ID` - Vercel项目ID（可选）
+**重要说明：**
+- ✅ **Vercel已通过GitHub集成自动部署**
+- ✅ **无需配置Token或任何Secrets**
+- ✅ **推送代码到main分支会自动触发Vercel部署**
 
-**如何获取Vercel Token：**
-1. 访问：https://vercel.com/account/tokens
-2. 创建新的Token
-3. 复制Token值
-4. 在GitHub仓库中添加Secret：
-   - Settings → Secrets and variables → Actions
-   - New repository secret
-   - Name: `VERCEL_TOKEN`
-   - Value: 你的Token
+**部署流程：**
+1. 推送代码到GitHub main分支
+2. Vercel自动检测到推送
+3. Vercel自动构建和部署
+4. 在Vercel Dashboard查看部署状态
 
-**注意：** 如果没有配置Token，workflow会跳过部署步骤，不会失败
+**无需配置：** 此workflow仅用于显示信息，不需要任何配置
 
 ### 3. deploy-python-app.yml - 多平台部署
 **触发条件：** 手动触发或特定commit消息
@@ -38,21 +34,18 @@
 
 ## 🔧 配置说明
 
-### 必需配置（用于Vercel自动部署）
+### Vercel部署（无需配置）
 
-在GitHub仓库的Settings → Secrets and variables → Actions中添加：
+**✅ Vercel已通过GitHub集成自动部署**
 
-1. **VERCEL_TOKEN**
-   - 获取方式：https://vercel.com/account/tokens
-   - 用途：Vercel CLI认证
+- 无需配置任何Secrets
+- 无需配置Token
+- 推送代码到main分支会自动部署
 
-2. **VERCEL_ORG_ID**（可选）
-   - 获取方式：Vercel Dashboard → Settings → General
-   - 用途：指定组织
-
-3. **VERCEL_PROJECT_ID**（可选）
-   - 获取方式：Vercel Dashboard → Project Settings → General
-   - 用途：指定项目
+**如何确认Vercel集成：**
+1. 访问：https://vercel.com/dashboard
+2. 查看项目设置 → Git
+3. 确认已连接到GitHub仓库
 
 ### 可选配置（用于其他平台）
 
@@ -63,13 +56,11 @@
 
 ## ✅ 推荐设置
 
-**最小配置（只运行测试）：**
-- 无需任何配置
-- test.yml会自动运行
-
-**完整配置（自动部署到Vercel）：**
-- 添加 `VERCEL_TOKEN` Secret
-- vercel-deploy.yml会自动运行
+**当前配置（推荐）：**
+- ✅ 无需任何配置
+- ✅ test.yml会自动运行测试
+- ✅ Vercel通过GitHub集成自动部署
+- ✅ 推送代码到main分支自动触发部署
 
 ## 🚀 使用建议
 

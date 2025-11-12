@@ -1,55 +1,30 @@
 name: Vercel 部署
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
-
-env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  workflow_dispatch:  # 仅手动触发，Vercel会自动通过GitHub集成部署
 
 jobs:
-  deploy:
+  info:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: 检查Vercel Token
-        id: check_token
+      - name: 显示部署信息
         run: |
-          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
-            echo "⚠️ VERCEL_TOKEN not configured, skipping Vercel deployment"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "✅ VERCEL_TOKEN found"
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 拉取 Vercel 环境信息
-        if: steps.check_token.outputs.skip == 'false'
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: 构建项目
-        if: steps.check_token.outputs.skip == 'false'
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: 部署到 Vercel
-        if: steps.check_token.outputs.skip == 'false'
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: 提示配置Token
-        if: steps.check_token.outputs.skip == 'true'
-        run: |
-          echo "⚠️ Vercel deployment skipped"
-          echo "To enable Vercel deployment, add VERCEL_TOKEN to GitHub Secrets"
-          echo "See: https://github.com/clkhoo5211/upgraded-octo-fortnight/blob/main/.github/workflows/README.md"
+          echo "ℹ️ Vercel部署说明"
+          echo "================================"
+          echo ""
+          echo "✅ Vercel已通过GitHub集成自动部署"
+          echo ""
+          echo "📋 部署方式："
+          echo "1. Vercel会自动检测GitHub推送并部署"
+          echo "2. 无需手动触发或配置Token"
+          echo "3. 推送代码到main分支会自动部署"
+          echo ""
+          echo "🔍 查看部署状态："
+          echo "- Vercel Dashboard: https://vercel.com/dashboard"
+          echo "- 项目: upgraded-octo-fortnight"
+          echo ""
+          echo "📝 如果需要手动重新部署："
+          echo "- 在Vercel Dashboard中点击 'Redeploy'"
+          echo "- 或推送新的commit到main分支"
+          echo ""
+          echo "================================"
