@@ -6,6 +6,14 @@ import json
 from http.server import BaseHTTPRequestHandler
 
 class handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        """处理CORS预检请求"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+    
     def do_GET(self):
         try:
             # 检查配置状态
