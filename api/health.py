@@ -13,14 +13,21 @@ def health_check():
     
     返回服务状态和配置信息
     """
-    # 检查环境变量配置
+    # 检查环境变量配置（可选）
+    newsapi_key = os.getenv('NEWSAPI_KEY')
+    bing_api_key = os.getenv('BING_API_KEY')
+    serpapi_key = os.getenv('SERPAPI_KEY')
+    google_search_api_key = os.getenv('GOOGLE_SEARCH_API_KEY')
+    github_token = os.getenv('GITHUB_TOKEN')
+    enable_news_filter = os.getenv('ENABLE_NEWS_FILTER', 'true')
+    
     config_status = {
-        'NEWSAPI_KEY': bool(os.getenv('NEWSAPI_KEY')),
-        'BING_API_KEY': bool(os.getenv('BING_API_KEY')),
-        'SERPAPI_KEY': bool(os.getenv('SERPAPI_KEY')),
-        'GOOGLE_SEARCH_API_KEY': bool(os.getenv('GOOGLE_SEARCH_API_KEY')),
-        'GITHUB_TOKEN': bool(os.getenv('GITHUB_TOKEN')),
-        'ENABLE_NEWS_FILTER': os.getenv('ENABLE_NEWS_FILTER', 'true')
+        'NEWSAPI_KEY': bool(newsapi_key),
+        'BING_API_KEY': bool(bing_api_key),
+        'SERPAPI_KEY': bool(serpapi_key),
+        'GOOGLE_SEARCH_API_KEY': bool(google_search_api_key),
+        'GITHUB_TOKEN': bool(github_token),
+        'ENABLE_NEWS_FILTER': enable_news_filter
     }
     
     # 统计可用的新闻源
@@ -45,21 +52,54 @@ def health_check():
         'status': 'healthy',
         'service': 'Global News Aggregator',
         'version': '1.0.0',
+        'service_status': 'operational',  # 服务运行状态
+        
         'endpoints': {
             '/api/search': 'POST/GET - 搜索全网新闻',
             '/api/download': 'POST/GET - 下载新闻完整内容',
             '/api/health': 'GET - 健康检查'
         },
-        'available_sources': available_sources,
-        'total_sources': len(available_sources),
-        'config_status': config_status,
-        'features': {
-            'intelligent_filtering': config_status['ENABLE_NEWS_FILTER'] == 'true',
+        
+        # 总是可用的免费功能
+        'free_features': {
+            'search': True,
+            'content_extraction': True,
             'multi_language': True,
-            'custom_keywords': True,
-            'quality_scoring': True,
-            'content_extraction': True
-        }
+            'quality_scoring': True
+        },
+        
+        # 可选的付费功能（需要API密钥）
+        'premium_features': {
+            'newsapi_source': bool(config_status['NEWSAPI_KEY']),
+            'bing_news': bool(config_status['BING_API_KEY']),
+            'serpapi_search': bool(config_status['SERPAPI_KEY']),
+            'google_search': bool(config_status['GOOGLE_SEARCH_API_KEY']),
+            'github_token': bool(config_status['GITHUB_TOKEN'])
+        },
+        
+        'news_sources': {
+            'free_sources': [
+                'Hacker News API',
+                'Google News RSS',
+                'Product Hunt GraphQL',
+                'Reddit JSON API'
+            ],
+            'premium_sources': [
+                'NewsAPI.org' if config_status['NEWSAPI_KEY'] else None,
+                'Bing News API' if config_status['BING_API_KEY'] else None,
+                'SerpAPI' if config_status['SERPAPI_KEY'] else None,
+                'Google Custom Search' if config_status['GOOGLE_SEARCH_API_KEY'] else None,
+                'GitHub API' if config_status['GITHUB_TOKEN'] else None
+            ]
+        },
+        
+        'settings': {
+            'intelligent_filtering': config_status['ENABLE_NEWS_FILTER'] == 'true',
+            'production_mode': True
+        },
+        
+        # 迁移说明
+        'migration_note': '如果不使用付费API服务，此服务仅使用免费源也能正常工作'
     })
 
 # Vercel入口

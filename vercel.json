@@ -14,7 +14,6 @@
     }
   ],
   "env": {
-    "NEWSAPI_KEY": "@newsapi_key",
     "FLASK_ENV": "production",
     "FLASK_DEBUG": "false"
   },
