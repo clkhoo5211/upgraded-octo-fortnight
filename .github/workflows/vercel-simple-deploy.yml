@@ -1,0 +1,92 @@
+name: Vercel 部署 (简化版)
+
+on:
+  # 手动触发部署
+  workflow_dispatch:
+    inputs:
+      message:
+        description: '部署信息 (可选)'
+        required: false
+        default: '从GitHub Actions触发部署'
+
+  # 通过特定commit message触发
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 显示部署说明
+        run: |
+          echo "🚀 Vercel部署说明"
+          echo "================================"
+          echo "此工作流已配置为需要手动操作来触发Vercel部署"
+          echo ""
+          echo "方法一：Vercel Dashboard导入（推荐）"
+          echo "1. 访问 https://vercel.com/dashboard"
+          echo "2. 点击 'Add New...' → 'Project'"
+          echo "3. 导入此GitHub仓库：upgraded-octo-fortnight"
+          echo "4. 配置：Framework Preset = Other"
+          echo "5. 添加环境变量：NEWSAPI_KEY"
+          echo "6. 点击 Deploy"
+          echo ""
+          echo "方法二：使用GitHub Secrets自动部署"
+          echo "如需自动部署，请在GitHub仓库设置中添加以下Secrets："
+          echo "- VERCEL_TOKEN (从Vercel获取)"
+          echo "- VERCEL_ORG_ID (从Vercel项目设置获取)"
+          echo "- VERCEL_PROJECT_ID (从Vercel项目设置获取)"
+          echo ""
+          echo "方法三：本地部署"
+          echo "运行命令："
+          echo "1. npm install -g vercel"
+          echo "2. vercel login"
+          echo "3. vercel --prod"
+          echo "================================"
+
+      - name: 创建部署README
+        run: |
+          cat > VERCEL_DEPLOY_INSTRUCTIONS.md << 'EOF'
+          # 🚀 Vercel部署指南
+          
+          ## 推荐方法：Dashboard导入（3分钟完成）
+          
+          ### 1. 访问Vercel Dashboard
+          打开 https://vercel.com/dashboard 并登录
+          
+          ### 2. 导入项目
+          - 点击 "Add New..." → "Project"
+          - 选择 "Import Git Repository"
+          - 找到 `upgraded-octo-fortnight` 仓库
+          - 点击 "Import"
+          
+          ### 3. 项目配置
+          | 设置项 | 值 |
+          |--------|-----|
+          | Framework Preset | Other |
+          | Root Directory | ./ (默认) |
+          | Build Command | 留空 |
+          | Output Directory | 留空 |
+          | Install Command | pip install -r requirements.txt |
+          
+          ### 4. 环境变量
+          添加环境变量：
+          - **Name**: `NEWSAPI_KEY`
+          - **Value**: 你的NewsAPI密钥
+          
+          ### 5. 部署
+          点击 "Deploy" 按钮，等待1-2分钟完成部署
+          
+          ## 测试API端点
+          部署成功后可访问：
+          - 健康检查：`https://your-project.vercel.app/api/health`
+          - 获取新闻：`https://your-project.vercel.app/api/news?query=AI&language=zh`
+          - 热门新闻：`https://your-project.vercel.app/api/trending`
+          - 新闻源：`https://your-project.vercel.app/api/sources`
+          EOF
+          
+          echo "📄 已生成详细的部署说明文档：VERCEL_DEPLOY_INSTRUCTIONS.md"
